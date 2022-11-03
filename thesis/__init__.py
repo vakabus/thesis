@@ -85,10 +85,12 @@ class VM:
             except SSHError:
                 sleep(0.5)
 
-    def upload_file(self, file: Path, vmpath: str):
+    def upload_file(self, file: Path, vmpath: str | Path):
+        logger.debug("file upload starting: %s -> %s", file, vmpath)
         self.wait_for_agent_online()
         data = b64encode(file.read_bytes()).decode("ascii")
-        self.api.agent("file-write").post(content=data, file=vmpath, encode=False)
+        self.api.agent("file-write").post(content=data, file=str(vmpath), encode=False)
+        logger.debug("file upload complete")
 
     def run_command(self, command: str, stdin: str = None):
         logger.info(f"running command: {command}")
@@ -306,6 +308,21 @@ def provision(rm, name):
         if vm and rm:
             logger.warning("Destroying the VM...")
             vm.destroy()
+
+
+@cli.command()
+@click.argument("vm_name", type=str, nargs=1)
+@click.argument("source", type=click.Path(exists=True), nargs=1)
+@click.argument("dest", type=click.Path(exists=False), nargs=1)
+def upload(vm_name: str, source: str, dest: str):
+    vm = get_vm_by_name(vm_name)
+    vm.upload_file(Path(source), dest)
+
+
+@cli.command()
+@click.argument("vm_name", type=str, nargs=1)
+def start(vm_name: str):
+    get_vm_by_name(vm_name).start()
 
 
 if __name__ == "__main__":
