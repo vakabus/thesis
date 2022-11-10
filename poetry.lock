@@ -32,6 +32,14 @@ jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
+name = "certifi"
+version = "2022.9.24"
+description = "Python package for providing Mozilla's CA Bundle."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "cffi"
 version = "1.15.1"
 description = "Foreign Function Interface for Python calling C code."
@@ -41,6 +49,17 @@ python-versions = "*"
 
 [package.dependencies]
 pycparser = "*"
+
+[[package]]
+name = "charset-normalizer"
+version = "2.1.1"
+description = "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet."
+category = "main"
+optional = false
+python-versions = ">=3.6.0"
+
+[package.extras]
+unicode-backport = ["unicodedata2"]
 
 [[package]]
 name = "click"
@@ -79,6 +98,14 @@ pep8test = ["black", "flake8", "flake8-import-order", "pep8-naming"]
 sdist = ["setuptools-rust (>=0.11.4)"]
 ssh = ["bcrypt (>=3.1.5)"]
 test = ["hypothesis (>=1.11.4,!=3.79.2)", "iso8601", "pretend", "pytest (>=6.2.0)", "pytest-benchmark", "pytest-cov", "pytest-subtests", "pytest-xdist", "pytz"]
+
+[[package]]
+name = "idna"
+version = "3.4"
+description = "Internationalized Domain Names in Applications (IDNA)"
+category = "main"
+optional = false
+python-versions = ">=3.5"
 
 [[package]]
 name = "isort"
@@ -205,6 +232,24 @@ docs = ["sphinx (>=1.6.5)", "sphinx_rtd_theme"]
 tests = ["hypothesis (>=3.27.0)", "pytest (>=3.2.1,!=3.3.0)"]
 
 [[package]]
+name = "requests"
+version = "2.28.1"
+description = "Python HTTP for Humans."
+category = "main"
+optional = false
+python-versions = ">=3.7, <4"
+
+[package.dependencies]
+certifi = ">=2017.4.17"
+charset-normalizer = ">=2,<3"
+idna = ">=2.5,<4"
+urllib3 = ">=1.21.1,<1.27"
+
+[package.extras]
+socks = ["PySocks (>=1.5.6,!=1.5.7)"]
+use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -228,10 +273,23 @@ category = "main"
 optional = false
 python-versions = ">=3.7"
 
+[[package]]
+name = "urllib3"
+version = "1.26.12"
+description = "HTTP library with thread-safe connection pooling, file post, and more."
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, <4"
+
+[package.extras]
+brotli = ["brotli (>=1.0.9)", "brotlicffi (>=0.8.0)", "brotlipy (>=0.6.0)"]
+secure = ["certifi", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "ipaddress", "pyOpenSSL (>=0.14)", "urllib3-secure-extra"]
+socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "8e899c6e8b7c52597d0acc5561e04f26707a94f07b602814beeb60478d096a7e"
+content-hash = "644299d9cb4785a4315b39b9bfc6964b8ec052b7a4ac328a54eff582550cfb05"
 
 [metadata.files]
 bcrypt = [
@@ -279,6 +337,10 @@ black = [
     {file = "black-22.10.0-cp39-cp39-win_amd64.whl", hash = "sha256:432247333090c8c5366e69627ccb363bc58514ae3e63f7fc75c54b1ea80fa7de"},
     {file = "black-22.10.0-py3-none-any.whl", hash = "sha256:c957b2b4ea88587b46cf49d1dc17681c1e672864fd7af32fc1e9664d572b3458"},
     {file = "black-22.10.0.tar.gz", hash = "sha256:f513588da599943e0cde4e32cc9879e825d58720d6557062d1098c5ad80080e1"},
+]
+certifi = [
+    {file = "certifi-2022.9.24-py3-none-any.whl", hash = "sha256:90c1a32f1d68f940488354e36370f6cca89f0f106db09518524c88d6ed83f382"},
+    {file = "certifi-2022.9.24.tar.gz", hash = "sha256:0d9c601124e5a6ba9712dbc60d9c53c21e34f5f641fe83002317394311bdce14"},
 ]
 cffi = [
     {file = "cffi-1.15.1-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:a66d3508133af6e8548451b25058d5812812ec3798c886bf38ed24a98216fab2"},
@@ -346,6 +408,10 @@ cffi = [
     {file = "cffi-1.15.1-cp39-cp39-win_amd64.whl", hash = "sha256:70df4e3b545a17496c9b3f41f5115e69a4f2e77e94e1d2a8e1070bc0c38c8a3c"},
     {file = "cffi-1.15.1.tar.gz", hash = "sha256:d400bfb9a37b1351253cb402671cea7e89bdecc294e8016a707f6d1d8ac934f9"},
 ]
+charset-normalizer = [
+    {file = "charset-normalizer-2.1.1.tar.gz", hash = "sha256:5a3d016c7c547f69d6f81fb0db9449ce888b418b5b9952cc5e6e66843e9dd845"},
+    {file = "charset_normalizer-2.1.1-py3-none-any.whl", hash = "sha256:83e9a75d1911279afd89352c68b45348559d1fc0506b054b346651b5e7fee29f"},
+]
 click = [
     {file = "click-8.1.3-py3-none-any.whl", hash = "sha256:bb4d8133cb15a609f44e8213d9b391b0809795062913b383c62be0ee95b1db48"},
     {file = "click-8.1.3.tar.gz", hash = "sha256:7682dc8afb30297001674575ea00d1814d808d6a36af415a82bd481d37ba7b8e"},
@@ -381,6 +447,10 @@ cryptography = [
     {file = "cryptography-38.0.3-pp39-pypy39_pp73-manylinux_2_28_x86_64.whl", hash = "sha256:8d41a46251bf0634e21fac50ffd643216ccecfaf3701a063257fe0b2be1b6548"},
     {file = "cryptography-38.0.3-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:785e4056b5a8b28f05a533fab69febf5004458e20dad7e2e13a3120d8ecec75a"},
     {file = "cryptography-38.0.3.tar.gz", hash = "sha256:bfbe6ee19615b07a98b1d2287d6a6073f734735b49ee45b11324d85efc4d5cbd"},
+]
+idna = [
+    {file = "idna-3.4-py3-none-any.whl", hash = "sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2"},
+    {file = "idna-3.4.tar.gz", hash = "sha256:814f528e8dead7d329833b91c5faa87d60bf71824cd12a7530b5526063d02cb4"},
 ]
 isort = [
     {file = "isort-5.10.1-py3-none-any.whl", hash = "sha256:6f62d78e2f89b4500b080fe3a81690850cd254227f27f75c3a0c491a1f351ba7"},
@@ -433,6 +503,10 @@ pynacl = [
     {file = "PyNaCl-1.5.0-cp36-abi3-win_amd64.whl", hash = "sha256:20f42270d27e1b6a29f54032090b972d97f0a1b0948cc52392041ef7831fee93"},
     {file = "PyNaCl-1.5.0.tar.gz", hash = "sha256:8ac7448f09ab85811607bdd21ec2464495ac8b7c66d146bf545b0f08fb9220ba"},
 ]
+requests = [
+    {file = "requests-2.28.1-py3-none-any.whl", hash = "sha256:8fefa2a1a1365bf5520aac41836fbee479da67864514bdb821f31ce07ce65349"},
+    {file = "requests-2.28.1.tar.gz", hash = "sha256:7c5599b102feddaa661c826c56ab4fee28bfd17f5abca1ebbe3e7f19d7c97983"},
+]
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
@@ -444,4 +518,8 @@ tomli = [
 typing-extensions = [
     {file = "typing_extensions-4.4.0-py3-none-any.whl", hash = "sha256:16fa4864408f655d35ec496218b85f79b3437c829e93320c7c9215ccfd92489e"},
     {file = "typing_extensions-4.4.0.tar.gz", hash = "sha256:1511434bb92bf8dd198c12b1cc812e800d4181cfcb867674e0f8279cc93087aa"},
+]
+urllib3 = [
+    {file = "urllib3-1.26.12-py2.py3-none-any.whl", hash = "sha256:b930dd878d5a8afb066a637fbb35144fe7901e3b209d1cd4f524bd0e9deee997"},
+    {file = "urllib3-1.26.12.tar.gz", hash = "sha256:3fa96cf423e6987997fc326ae8df396db2a8b7c667747d47ddd8ecba91f4a74e"},
 ]

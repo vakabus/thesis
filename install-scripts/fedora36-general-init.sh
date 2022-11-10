@@ -12,7 +12,7 @@ done
 
 sudo hostnamectl set-hostname $1
 sudo dnf remove -y zram-generator-defaults
-sudo dnf install -y htop nload fish micro iproute-tc
+sudo dnf install -y htop nload fish micro iproute-tc python3-pip openvswitch openvswitch-devel rsync make ovn ovn-host ovn-vtep ovn-central
 
 sudo dnf -y install dnf-plugins-core
 sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
@@ -36,7 +36,7 @@ EOF
 # Set SELinux in permissive mode (effectively disabling it)
 sudo setenforce 0
 sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
-sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+sudo yum install -y kubelet kubeadm kubectl kubernetes-cni --disableexcludes=kubernetes
 sudo systemctl enable --now kubelet
 
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf

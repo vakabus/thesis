@@ -10,16 +10,18 @@ from functools import cache
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from itertools import count
 from pathlib import Path
+from threading import Thread
 from time import sleep
-from typing import Type
+from typing import List, Optional, Type
 
 import click
 from openssh_wrapper import SSHError
-from proxmoxer import ProxmoxAPI, ProxmoxResource
+from proxmoxer import ProxmoxAPI, ProxmoxResource, ResourceException
 from typing_extensions import Self
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+logging.getLogger("urllib3").setLevel(logging.INFO)
 
 
 class Status(Enum):
@@ -82,37 +84,66 @@ class VM:
             try:
                 self.api.agent.info.get()
                 return
-            except SSHError:
-                sleep(0.5)
+            except (SSHError, ResourceException):
+                sleep(0.3)
+
+    def wait_for_systemd(self):
+        self.wait_for_agent_online()
+
+        logger.info("waiting for system boot: system booted, waiting for systemd initialization")
+
+        # wait for DHCP
+        ips = self.list_ips()
+        while not sum((isinstance(i, IPv4Address) for i in ips)):
+            sleep(0.3)
+            ips = self.list_ips()
+
+        while self.run_ssh_command_blocking("systemctl is-system-running --wait"):
+            sleep(0.3)
 
     def upload_file(self, file: Path, vmpath: str | Path):
         logger.debug("file upload starting: %s -> %s", file, vmpath)
         self.wait_for_agent_online()
         data = b64encode(file.read_bytes()).decode("ascii")
-        self.api.agent("file-write").post(content=data, file=str(vmpath), encode=False)
+        self.api.agent("file-write").post(content=data, file=str(vmpath), encode=int(False))
         logger.debug("file upload complete")
 
-    def run_command(self, command: str, stdin: str = None):
+    def rsync_files(self, source: Path, vmpath: str | Path):
+        logger.debug("rsync file upload starting: %s -> %s", source, vmpath)
+        ip = self.list_ips()[0]
+        r = subprocess.call(
+            [
+                "rsync",
+                "-e",
+                "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no",
+                "--progress",
+                "-r",
+                str(source),
+                f"vasek@{ip}:{vmpath}",
+            ]
+        )
+        assert r == 0
+
+    def run_agent_command(self, command: str, stdin: str = None):
         logger.info(f"running command: {command}")
-        self.wait_for_agent_online()
         res = self.api.agent.exec.post(**{"command": command, "input-data": stdin})
         return res["pid"]
 
-    def run_command_blocking(self, *args, **kwargs):
-        pid = self.run_command(*args, **kwargs)
+    def run_agent_command_blocking(self, *args, **kwargs) -> int:
+        pid = self.run_agent_command(*args, **kwargs)
         logger.debug("running command: waiting for completion")
         data = {"exited": False}
         while not (data := self.api.agent("exec-status").get(pid=pid))["exited"]:
             sleep(0.3)
         exitcode = data.get("exitcode") or data.get("signal")
-        logger.info(f"command exited with exitcode {exitcode}")
+        logger.debug(f"command exited with exitcode {exitcode}")
         if "err-data" in data:
             logger.debug("stderr:\n%s", data["err-data"])
         if "out-data" in data:
             logger.debug("stdout:\n%s", data["out-data"])
-        # do something ??
+        return exitcode
 
-    def run_command_over_blocking_ssh(self, command: str | list[str]) -> int:
+    def run_ssh_command_blocking(self, command: str | list[str]) -> int:
         ips = self.list_ips()
         if isinstance(command, str):
             command = shlex.split(command)
@@ -121,16 +152,26 @@ class VM:
         )
         return retcode
 
+    def run_ssh_command_get_output(self, command: str | list[str]) -> str:
+        ips = self.list_ips()
+        if isinstance(command, str):
+            command = shlex.split(command)
+        output = subprocess.check_output(
+            ["ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", f"vasek@{ips[0]}"] + command
+        )
+        return output.decode("utf8").strip()
+
     def list_ips(self) -> list[IPv4Address | IPv6Address]:
         self.wait_for_agent_online()
         res = self.api.agent("network-get-interfaces").get()
 
         addrs = []
         for interface in res["result"]:
-            if interface["name"] == "lo":
-                continue  # skip loopback
-            for addr in interface["ip-addresses"]:
+            if interface["name"] == "lo" or interface["name"].startswith("docker"):
+                continue  # skip loopback and docker
+            for addr in interface.get("ip-addresses", []):
                 addrs.append(ip_address(addr["ip-address"]))
+        addrs.sort(key=lambda x: (str(type(x)), x))
         return addrs
 
     def interactive_ssh(self):
@@ -141,8 +182,18 @@ class VM:
 
 
 @cache
+def get_root_password() -> str:
+    """
+    Utilizes unlocked ssh-agent to get the root password from the actual Proxmox cluster we are connecting to.
+    """
+    return subprocess.check_output(["ssh", "root@tapir.lan", "cat", "passwd"]).decode("utf8").strip()
+
+
+@cache
 def api_proxy() -> ProxmoxAPI:
-    return ProxmoxAPI("tapir.lan", user="root", backend="openssh", service="pve")
+    return ProxmoxAPI(
+        "tapir.lan", user="root@pam", backend="https", password=get_root_password(), verify_ssl=False, service="pve"
+    )
 
 
 @cache
@@ -201,10 +252,17 @@ def wait_for_task(task: str):
 
 
 def find_free_vmid() -> int:
+    return find_free_vmids(1)[0]
+
+
+def find_free_vmids(cnt: int) -> list[int]:
+    res = []
     ids = set((v.vmid for v in current_vms()))
     for i in count(start=500):
         if i not in ids:
-            return i
+            res.append(i)
+        if len(res) == cnt:
+            return res
 
 
 def get_vm_by_name(name: str) -> VM:
@@ -221,14 +279,15 @@ def get_vm_by_vmid(vmid: int) -> VM:
     raise KeyError(f"VM with vmid '{vmid}' not found")
 
 
-def clone_fedora36(name: str) -> VM:
+def clone_fedora36(name: str, vmid: int | None = None) -> VM:
     logger.debug("new Fedora36 clone creation running")
 
     host = min(hosts().values(), key=lambda h: h.cpu_utilization())
     logger.debug(f"new Fedora36 clone, will be using host '{host.name}'")
 
     # clone
-    vmid = find_free_vmid()
+    if not vmid:
+        vmid = find_free_vmid()
     templateid = {"tapir": 9010, "zebra": 9011}[host.name]
 
     host.api.qemu(templateid).clone.post(name=name, newid=vmid)
@@ -284,22 +343,48 @@ def ssh_vmid(name: str):
     get_vm_by_name(name).interactive_ssh()
 
 
-@cli.command()
+@cli.command("provision-node")
 @click.option("--rm", required=False, default=False, help="delete vm after exit", is_flag=True)
+@click.option(
+    "--post-init-script",
+    required=False,
+    type=click.Path(exists=True, readable=True),
+    is_flag=False,
+    default=None,
+    nargs=1,
+    help="script to run after setup",
+)
+@click.option("-i", "--interactive", required=False, is_flag=True, help="run interactive session after setup")
 @click.argument("name", required=True, nargs=1, type=str)
-def provision(rm, name):
+def provision_node(rm: bool, post_init_script: Optional[str], interactive: bool, name: str):
+    provision_node_impl(rm, post_init_script, interactive, name)
+
+
+def provision_node_impl(
+    rm: bool, post_init_script: Optional[str], interactive: bool, name: str, vmid: int | None = None
+):
     vm = None
     try:
-        vm = clone_fedora36(name)
+        vm = clone_fedora36(name, vmid=vmid)
         try:
-            vm.wait_for_agent_online()
+            vm.wait_for_systemd()
 
             vm.upload_file(Path("install-scripts/fedora36-general-init.sh"), "/tmp/init.sh")
-            vm.run_command_over_blocking_ssh(f"bash /tmp/init.sh {name}")
+            vm.run_ssh_command_blocking(f"bash /tmp/init.sh {name}")
             # the previous script ends with a reboot
             sleep(1)
-            vm.wait_for_agent_online()
-            vm.interactive_ssh()
+            vm.wait_for_systemd()
+
+            # copy ovn-kubernetes repository to the user's home and install the binaries
+            vm.rsync_files("ovn-kubernetes", "")
+            vm.run_ssh_command_blocking("sudo make -C ovn-kubernetes/go-controller install")
+
+            if post_init_script:
+                vm.upload_file(Path(post_init_script), "/tmp/post-init-script")
+                vm.run_ssh_command_blocking("sudo chmod +x /tmp/post-init-script && /tmp/post-init-script")
+
+            if interactive:
+                vm.interactive_ssh()
 
         except KeyboardInterrupt:
             logger.info("received Ctrl+C, aborting...")
@@ -308,6 +393,51 @@ def provision(rm, name):
         if vm and rm:
             logger.warning("Destroying the VM...")
             vm.destroy()
+
+
+@cli.command("provision")
+@click.argument("names", required=True, nargs=-1, type=str)
+def provision(names: List[str]):
+    if len(names) == 0:
+        logger.error("at least one node is required in a cluster")
+        return 1
+
+    threads: list[Thread] = []
+
+    # allocate vmids
+    vmids = find_free_vmids(len(names))
+
+    # setup master node
+    t = Thread(
+        target=provision_node_impl,
+        args=(False, "install-scripts/ovn-kubernetes-master.sh", False, names[0]),
+        kwargs={"vmid": vmids[0]},
+    )
+    threads.append(t)
+    t.start()
+
+    # setup workers
+    for worker, vmid in zip(names[1:], vmids[1:]):
+        sleep(3)  # stupid way to prevent races
+        t = Thread(target=provision_node_impl, args=(False, None, False, worker), kwargs={"vmid": vmid})
+        threads.append(t)
+        t.start()
+
+    # wait for all the threads
+    for t in threads:
+        t.join()
+    logger.info("all nodes initialized")
+
+    # let the workers join the cluster
+    for worker in names[1:]:
+        logger.info("node %s is joining the cluster", worker)
+        join_command = get_vm_by_name(names[0]).run_ssh_command_get_output(
+            "sudo kubeadm token create --print-join-command"
+        )
+        logger.debug(join_command)
+        get_vm_by_name(worker).run_agent_command_blocking(
+            join_command + " --cri-socket=unix:///var/run/cri-dockerd.sock"
+        )
 
 
 @cli.command()
