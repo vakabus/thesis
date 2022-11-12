@@ -12,7 +12,7 @@ done
 
 sudo hostnamectl set-hostname $1
 sudo dnf remove -y zram-generator-defaults
-sudo dnf install -y htop nload fish micro iproute-tc python3-pip openvswitch openvswitch-devel rsync make ovn ovn-host ovn-vtep ovn-central
+sudo dnf install -y htop nload fish micro iproute-tc python3-pip openvswitch openvswitch-devel rsync make ovn ovn-host ovn-vtep ovn-central ldns-utils
 
 sudo dnf -y install dnf-plugins-core
 sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
@@ -56,5 +56,9 @@ EOF
 
 # Apply sysctl params without reboot
 sudo sysctl --system
+
+# remove systemd-resolved before reboot
+sudo dnf remove -y systemd-resolved
+sudo rm -f /etc/resolv.conf
 
 sudo reboot

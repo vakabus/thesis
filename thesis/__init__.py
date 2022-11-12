@@ -7,7 +7,7 @@ from base64 import b64encode
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cache
-from ipaddress import IPv4Address, IPv6Address, ip_address
+from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from itertools import count
 from pathlib import Path
 from threading import Thread
@@ -22,6 +22,39 @@ from typing_extensions import Self
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logging.getLogger("urllib3").setLevel(logging.INFO)
+
+
+class NotReadyError(Exception):
+    pass
+
+
+class Constants:
+    PROXMOX_API_HOST: str = "tapir.lan"
+    PROXMOX_USER = "root@pam"
+    PROXMOX_TEMPLATE_VMIDS: dict[str, int] = {"tapir": 9010, "zebra": 9011}
+    PROXMOX_TEMPLATE_USER: str = "vasek"
+    PROXMOX_PROTECTED_VMIDS: set[int] = set((100, 9010, 9011))
+
+    @staticmethod
+    def _get_proxmox_password() -> str:
+        """
+        Utilizes unlocked ssh-agent to get the root password from the actual Proxmox cluster we are connecting to.
+        """
+        return subprocess.check_output(["ssh", "root@tapir.lan", "cat", "passwd"]).decode("utf8").strip()
+
+    PROXMOX_PASSWORD = _get_proxmox_password()
+
+    HOME_NETWORK: list[ip_network] = [
+        ip_network("192.168.1.0/24"),
+        ip_network("2001:67c:2190:1506::/64"),
+    ]
+
+    SSH_OPTS: list[str] = [
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "StrictHostKeyChecking=no",
+    ]
 
 
 class Status(Enum):
@@ -110,16 +143,16 @@ class VM:
 
     def rsync_files(self, source: Path, vmpath: str | Path):
         logger.debug("rsync file upload starting: %s -> %s", source, vmpath)
-        ip = self.list_ips()[0]
+        ip = self.get_ip()
         r = subprocess.call(
             [
                 "rsync",
                 "-e",
-                "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no",
+                f"ssh {' '.join(Constants.SSH_OPTS)}",
                 "--progress",
                 "-r",
                 str(source),
-                f"vasek@{ip}:{vmpath}",
+                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}:{vmpath}",
             ]
         )
         assert r == 0
@@ -144,20 +177,30 @@ class VM:
         return exitcode
 
     def run_ssh_command_blocking(self, command: str | list[str]) -> int:
-        ips = self.list_ips()
+        ip = self.get_ip()
         if isinstance(command, str):
             command = shlex.split(command)
         retcode = subprocess.call(
-            ["ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", f"vasek@{ips[0]}"] + command
+            [
+                "ssh",
+                *Constants.SSH_OPTS,
+                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
+            ]
+            + command
         )
         return retcode
 
     def run_ssh_command_get_output(self, command: str | list[str]) -> str:
-        ips = self.list_ips()
+        ip = self.get_ip()
         if isinstance(command, str):
             command = shlex.split(command)
         output = subprocess.check_output(
-            ["ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", f"vasek@{ips[0]}"] + command
+            [
+                "ssh",
+                *Constants.SSH_OPTS,
+                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
+            ]
+            + command
         )
         return output.decode("utf8").strip()
 
@@ -167,32 +210,44 @@ class VM:
 
         addrs = []
         for interface in res["result"]:
-            if interface["name"] == "lo" or interface["name"].startswith("docker"):
-                continue  # skip loopback and docker
             for addr in interface.get("ip-addresses", []):
                 addrs.append(ip_address(addr["ip-address"]))
         addrs.sort(key=lambda x: (str(type(x)), x))
         return addrs
 
+    def get_ip(self) -> IPv4Address:
+        """
+        Returns an IP address that is inside the home network.
+        """
+        for ip in self.list_ips():
+            for net in Constants.HOME_NETWORK:
+                try:
+                    if ip_network(ip).subnet_of(net):
+                        return ip
+                except TypeError:  # ignore IP version mismatch
+                    pass
+        raise NotReadyError
+
     def interactive_ssh(self):
-        ips = self.list_ips()
+        ip = self.get_ip()
         subprocess.call(
-            ["ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", f"vasek@{ips[0]}"]
+            [
+                "ssh",
+                *Constants.SSH_OPTS,
+                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
+            ]
         )
-
-
-@cache
-def get_root_password() -> str:
-    """
-    Utilizes unlocked ssh-agent to get the root password from the actual Proxmox cluster we are connecting to.
-    """
-    return subprocess.check_output(["ssh", "root@tapir.lan", "cat", "passwd"]).decode("utf8").strip()
 
 
 @cache
 def api_proxy() -> ProxmoxAPI:
     return ProxmoxAPI(
-        "tapir.lan", user="root@pam", backend="https", password=get_root_password(), verify_ssl=False, service="pve"
+        Constants.PROXMOX_API_HOST,
+        user=Constants.PROXMOX_USER,
+        backend="https",
+        password=Constants.PROXMOX_PASSWORD,
+        verify_ssl=False,
+        service="pve",
     )
 
 
@@ -216,7 +271,7 @@ def current_vms():
     vms = []
     for host in hosts().values():
         for vm in host.api.qemu.get():
-            if vm["vmid"] != 100:  # protect vrejsek, do not touch this VM
+            if vm["vmid"] not in Constants.PROXMOX_PROTECTED_VMIDS:  # prevent manipulation with protected VMs
                 vms.append(VM(vmid=vm["vmid"], name=vm["name"], api=host.api.qemu(vm["vmid"]), host=host))
     logger.debug(f"VM detection completed, found {len(vms)} VMs")
     return vms
@@ -288,7 +343,7 @@ def clone_fedora36(name: str, vmid: int | None = None) -> VM:
     # clone
     if not vmid:
         vmid = find_free_vmid()
-    templateid = {"tapir": 9010, "zebra": 9011}[host.name]
+    templateid = Constants.PROXMOX_TEMPLATE_VMIDS[host.name]
 
     host.api.qemu(templateid).clone.post(name=name, newid=vmid)
     host.wait_for_all_tasks()
@@ -304,43 +359,31 @@ def clone_fedora36(name: str, vmid: int | None = None) -> VM:
 
 @click.group
 def cli():
-    pass
+    """
+    Utilities for working with the dev environment, automatically provisioning configured Kubernetes clusters and
+    interacting with the nodes.
+    """
 
 
-@cli.group()
-def destroy():
-    pass
-
-
-@destroy.command(name="vmid")
-@click.argument("vmid", nargs=-1, type=int)
-def destroy_vmid(vmid: list[int]):
-    for i in vmid:
-        get_vm_by_vmid(i).destroy()
-
-
-@destroy.command(name="name")
+@cli.command("destroy")
+@click.option("-i", "--vmid", is_flag=True, required=False, help="use VMID instead of human-readable name")
 @click.argument("name", nargs=-1, type=str)
-def destroy_name(name: list[str]):
+def destroy(vmid, name):
     for n in name:
-        get_vm_by_name(n).destroy()
+        if vmid:
+            get_vm_by_vmid(int(n)).destroy()
+        else:
+            get_vm_by_name(n).destroy()
 
 
-@cli.group()
-def ssh():
-    pass
-
-
-@ssh.command("vmid")
-@click.argument("vmid", type=int, nargs=1)
-def ssh_vmid(vmid: int):
-    get_vm_by_vmid(vmid).interactive_ssh()
-
-
-@ssh.command("name")
+@cli.command("ssh")
+@click.option("-i", "--vmid", is_flag=True, required=False, help="use VMID instead of human-readable name")
 @click.argument("name", type=str, nargs=1)
-def ssh_vmid(name: str):
-    get_vm_by_name(name).interactive_ssh()
+def ssh(vmid, name):
+    if vmid:
+        get_vm_by_vmid(int(name)).interactive_ssh()
+    else:
+        get_vm_by_name(name).interactive_ssh()
 
 
 @cli.command("provision-node")
