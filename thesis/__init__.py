@@ -33,7 +33,7 @@ class Constants:
     PROXMOX_USER = "root@pam"
     PROXMOX_TEMPLATE_VMIDS: dict[str, int] = {"tapir": 9010, "zebra": 9011}
     PROXMOX_TEMPLATE_USER: str = "vasek"
-    PROXMOX_PROTECTED_VMIDS: set[int] = set((100, 9010, 9011))
+    PROXMOX_PROTECTED_VMIDS: set[int] = set((100, 9000, 9010, 9011))
 
     @staticmethod
     def _get_proxmox_password() -> str:
@@ -266,9 +266,9 @@ def hosts() -> dict[str, Host]:
 
 
 @cache
-def current_vms():
+def current_vms() -> list[VM]:
     logger.debug("VM detection running")
-    vms = []
+    vms: list[VM] = []
     for host in hosts().values():
         for vm in host.api.qemu.get():
             if vm["vmid"] not in Constants.PROXMOX_PROTECTED_VMIDS:  # prevent manipulation with protected VMs
@@ -367,13 +367,41 @@ def cli():
 
 @cli.command("destroy")
 @click.option("-i", "--vmid", is_flag=True, required=False, help="use VMID instead of human-readable name")
+@click.option("--all", is_flag=True, required=False, help="destroy all VMs")
 @click.argument("name", nargs=-1, type=str)
-def destroy(vmid, name):
-    for n in name:
-        if vmid:
-            get_vm_by_vmid(int(n)).destroy()
-        else:
-            get_vm_by_name(n).destroy()
+def destroy(vmid, name, all):
+    if all:
+        if len(name) != 0:
+            logger.error("asking to destroy ALL VMs and providing some names at the same time is not supported")
+            exit(1)
+
+        cnt = len(current_vms())
+        if cnt == 0:
+            logger.error("nothing to destroy")
+            exit(0)
+
+        logger.warning(f"DESTROYING ALL {cnt} VMs in 3 seconds")
+        sleep(1)
+        logger.warning(f"DESTROYING ALL {cnt} VMs in 2 seconds")
+        sleep(1)
+        logger.warning(f"DESTROYING ALL {cnt} VMs in 1 seconds")
+        sleep(1)
+        logger.warning(f"DESTROYING ALL {cnt} VMs NOW")
+
+        for vm in current_vms():
+            vm.destroy()
+    else:
+        for n in name:
+            if vmid:
+                get_vm_by_vmid(int(n)).destroy()
+            else:
+                get_vm_by_name(n).destroy()
+
+
+@cli.command("list")
+def list_vms():
+    for vm in current_vms():
+        logger.info("%s [%i]: %s", vm.name, vm.vmid, vm.status)
 
 
 @cli.command("ssh")
