@@ -12,7 +12,7 @@ from itertools import count
 from pathlib import Path
 from threading import Thread
 from time import sleep
-from typing import List, Optional, Type
+from typing import Callable, List, Optional, Type
 
 import click
 from openssh_wrapper import SSHError
@@ -33,7 +33,17 @@ class Constants:
     PROXMOX_USER = "root@pam"
     PROXMOX_TEMPLATE_VMIDS: dict[str, int] = {"tapir": 9010, "zebra": 9011}
     PROXMOX_TEMPLATE_USER: str = "vasek"
-    PROXMOX_PROTECTED_VMIDS: set[int] = set((100, 9000, 9010, 9011))
+    PROXMOX_PROTECTED_VMIDS: list[Callable[[int], bool]] = [
+        lambda vmid: vmid < 500,
+        lambda vmid: vmid >= 1000
+    ]
+
+    @staticmethod
+    def is_vmid_protected(vmid: int):
+        for check in Constants.PROXMOX_PROTECTED_VMIDS:
+            if check(vmid):
+                return True
+        return False
 
     @staticmethod
     def _get_proxmox_password() -> str:
@@ -125,11 +135,13 @@ class VM:
 
         logger.info("waiting for system boot: system booted, waiting for systemd initialization")
 
-        # wait for DHCP
-        ips = self.list_ips()
-        while not sum((isinstance(i, IPv4Address) for i in ips)):
-            sleep(0.3)
-            ips = self.list_ips()
+        # wait for proper IP assignment
+        while True:
+            try:
+                _ = self.get_ip()
+                break
+            except NotReadyError:
+                pass
 
         while self.run_ssh_command_blocking("systemctl is-system-running --wait"):
             sleep(0.3)
@@ -271,7 +283,7 @@ def current_vms() -> list[VM]:
     vms: list[VM] = []
     for host in hosts().values():
         for vm in host.api.qemu.get():
-            if vm["vmid"] not in Constants.PROXMOX_PROTECTED_VMIDS:  # prevent manipulation with protected VMs
+            if not Constants.is_vmid_protected(vm["vmid"]):  # prevent manipulation with protected VMs
                 vms.append(VM(vmid=vm["vmid"], name=vm["name"], api=host.api.qemu(vm["vmid"]), host=host))
     logger.debug(f"VM detection completed, found {len(vms)} VMs")
     return vms
