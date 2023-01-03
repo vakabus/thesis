@@ -1,0 +1,28 @@
+[package]
+name = "analyzer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.68"
+chrono = "0.4.23"
+clap = { version = "4.0.29", features = ["derive"] }
+crossterm = "0.25.0"
+csv = "1.1.6"
+libc = "0.2.139"
+log = "0.4.17"
+memfd = "0.6.2"
+nix = "0.26.1"
+rand = "0.8.5"
+serde = { version = "1.0.152", features = ["serde_derive"] }
+serde_json = "1.0.91"
+signal-hook = "0.3.14"
+simple_logger = "4.0.0"
+subprocess = "0.2.9"
+tui = "0.19.0"
+
+[package.metadata.commands]
+deploy = { cmd = ["cargo build --release", "sh -c 'cd ../cluster_tools; poe run upload-everywhere ../analyzer/target/release/analyzer /usr/bin/analyzer'"]}
+deploy-arch = ["cargo build --release", "poe --root ../cluster_tools run upload-arch kb1 ../analyzer/target/release/analyzer /usr/bin/analyzer"]

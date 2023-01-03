@@ -1,7 +1,8 @@
 #!/bin/bash
+set -e
 
 # init Kubernetes cluster
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --cri-socket=unix:///var/run/cri-dockerd.sock --service-cidr=10.245.0.0/16 --skip-phases=addon/kube-proxy
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --service-cidr=10.245.0.0/16 --skip-phases=addon/kube-proxy --cri-socket=unix:///var/run/cri-dockerd.sock
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config

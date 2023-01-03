@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Vasek Sraier <git@vakabus.cz>"]
 readme = "README.md"
-packages = [{include = "thesis"}]
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -26,8 +26,8 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.poe.tasks]
-run = { script = "thesis:cli", help = "run the CLI" }
-format = { shell = "black thesis; isort .", help = "Run code formatter" }
+run = { script = "src:cli", help = "run the CLI" }
+format = { shell = "black src; isort .", help = "Run code formatter" }
 
 
 [tool.black]

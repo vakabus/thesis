@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: arch2
+  namespace: default
+spec:
+  containers:
+  - name: arch2
+    image: docker.io/archlinux:latest
+    command:
+      - sleep
+      - "infinity"
+    imagePullPolicy: IfNotPresent
+  restartPolicy: Always

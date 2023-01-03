@@ -29,7 +29,7 @@ class NotReadyError(Exception):
 
 
 class Constants:
-    PROXMOX_API_HOST: str = "tapir.lan"
+    PROXMOX_API_HOST: str = "tapir.folk-stork.ts.net"
     PROXMOX_USER = "root@pam"
     PROXMOX_TEMPLATE_VMIDS: dict[str, int] = {"tapir": 9010, "zebra": 9011}
     PROXMOX_TEMPLATE_USER: str = "vasek"
@@ -50,7 +50,7 @@ class Constants:
         """
         Utilizes unlocked ssh-agent to get the root password from the actual Proxmox cluster we are connecting to.
         """
-        return subprocess.check_output(["ssh", "root@tapir.lan", "cat", "passwd"]).decode("utf8").strip()
+        return subprocess.check_output(["ssh", f"root@tapir.folk-stork.ts.net", "cat", "passwd"]).decode("utf8").strip()
 
     PROXMOX_PASSWORD = _get_proxmox_password()
 
@@ -60,6 +60,7 @@ class Constants:
     ]
 
     SSH_OPTS: list[str] = [
+        "-t",
         "-o",
         "UserKnownHostsFile=/dev/null",
         "-o",
@@ -153,20 +154,24 @@ class VM:
         self.api.agent("file-write").post(content=data, file=str(vmpath), encode=int(False))
         logger.debug("file upload complete")
 
-    def rsync_files(self, source: Path, vmpath: str | Path):
+    def rsync_files(self, source: Path, vmpath: str | Path, as_root: bool = True):
         logger.debug("rsync file upload starting: %s -> %s", source, vmpath)
         ip = self.get_ip()
-        r = subprocess.call(
-            [
-                "rsync",
-                "-e",
-                f"ssh {' '.join(Constants.SSH_OPTS)}",
-                "--progress",
-                "-r",
-                str(source),
-                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}:{vmpath}",
-            ]
-        )
+        args = [
+            "rsync",
+            "-e",
+            f"ssh {' '.join(Constants.SSH_OPTS)}",
+            "--progress",
+            "-r",
+                # the --stats option is meaningless, we just dont want an empty argument there
+            "--rsync-path='sudo_rsync'" if as_root else "--stats",
+            str(source),
+            f"{Constants.PROXMOX_TEMPLATE_USER}@[{ip}]:{vmpath}",
+        ]
+
+        logger.debug("rsync args: %s", str(args))
+        r = subprocess.call(args)
+        logger.debug("rsync command exited with exit code %d", r)
         assert r == 0
 
     def run_agent_command(self, command: str, stdin: str = None):
@@ -227,7 +232,7 @@ class VM:
         addrs.sort(key=lambda x: (str(type(x)), x))
         return addrs
 
-    def get_ip(self) -> IPv4Address:
+    def get_ip(self) -> IPv4Address | IPv6Address:
         """
         Returns an IP address that is inside the home network.
         """
@@ -240,13 +245,14 @@ class VM:
                     pass
         raise NotReadyError
 
-    def interactive_ssh(self):
+    def interactive_ssh(self, command: list[str] = []):
         ip = self.get_ip()
         subprocess.call(
             [
                 "ssh",
                 *Constants.SSH_OPTS,
                 f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
+                *command
             ]
         )
 
@@ -459,7 +465,7 @@ def provision_node_impl(
             vm.wait_for_systemd()
 
             # copy ovn-kubernetes repository to the user's home and install the binaries
-            vm.rsync_files("ovn-kubernetes", "")
+            vm.rsync_files("ovn-kubernetes", "", as_root=False)
             vm.run_ssh_command_blocking("sudo make -C ovn-kubernetes/go-controller install")
 
             if post_init_script:
@@ -533,9 +539,62 @@ def upload(vm_name: str, source: str, dest: str):
 
 
 @cli.command()
+@click.argument("source", type=click.Path(exists=True), nargs=1)
+@click.argument("dest", type=click.Path(exists=False), nargs=1)
+def upload_everywhere(source: str, dest: str):
+    for vm in current_vms():
+        vm.rsync_files(Path(source), dest)
+
+
+@cli.command()
 @click.argument("vm_name", type=str, nargs=1)
 def start(vm_name: str):
     get_vm_by_name(vm_name).start()
+
+
+@cli.command()
+@click.argument("master_node", type=str, nargs=1)
+def deploy_arch(master_node: str):
+    vm = get_vm_by_name(master_node)
+    vm.upload_file(Path("kube_configs/arch.yaml"), "/arch.yaml")
+    vm.run_ssh_command_blocking("kubectl apply -f /arch.yaml")
+    sleep(1)
+    vm.run_ssh_command_blocking("while ! (kubectl describe pod arch | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
+
+
+@cli.command()
+@click.argument("master_node", type=str, nargs=1)
+def get_arch_ip(master_node: str):
+    vm = get_vm_by_name(master_node)
+    vm.run_ssh_command_blocking("while ! (kubectl describe pod arch | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
+
+
+@cli.command()
+@click.argument("master_node", type=str, nargs=1)
+def destroy_arch(master_node: str):
+    vm = get_vm_by_name(master_node)
+    vm.upload_file(Path("kube_configs/arch.yaml"), "/arch.yaml")
+    vm.run_ssh_command_blocking("kubectl delete -f /arch.yaml")
+
+
+@cli.command()
+@click.argument("master_node", type=str, nargs=1)
+def shell_arch(master_node: str):
+    vm = get_vm_by_name(master_node)
+    vm.interactive_ssh(["kubectl", "exec", "-ti", "arch", "--", "bash"])
+
+
+@cli.command()
+@click.argument("master_node", type=str, nargs=1)
+@click.argument("source", type=click.Path(exists=True), nargs=1)
+@click.argument("dest", type=click.Path(exists=False), nargs=1)
+def upload_arch(master_node: str, source: str, dest: str):
+    vm = get_vm_by_name(master_node)
+    vm.rsync_files(source, "/.upload")
+    vm.run_ssh_command_blocking(f"kubectl cp /.upload default/arch:{dest}; sudo rm -fr /.upload")
+    if Path(source).stat().st_mode & 0o111 > 0:
+        vm.run_ssh_command_blocking(f"kubectl exec -ti arch -- chmod +x {dest}")
+    #vm.interactive_ssh(["kubectl", "exec", "-ti", "arch", "--", "bash"])
 
 
 if __name__ == "__main__":
