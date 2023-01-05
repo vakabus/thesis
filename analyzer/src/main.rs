@@ -1,3 +1,5 @@
+#![feature(is_some_with)]
+
 #[macro_use]
 extern crate log;
 

@@ -1,10 +1,12 @@
 use std::{
+    net::{IpAddr, UdpSocket},
+    str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
     thread::sleep,
-    time::{Duration, Instant}, net::{UdpSocket, IpAddr}, str::FromStr,
+    time::{Duration, Instant},
 };
 
 use clap::Parser;
@@ -32,19 +34,25 @@ pub fn run(args: LogArgs) {
     let ms10 = Duration::from_millis(10);
 
     let udp_socket = UdpSocket::bind("0.0.0.0:0").expect("failed to bind the UDP socket");
-    udp_socket.connect((IpAddr::from_str(&args.log_ip).unwrap(), 9876)).expect("failed to connect the UDP socket to target IP");
+    udp_socket
+        .connect((IpAddr::from_str(&args.log_ip).unwrap(), 9876))
+        .expect("failed to connect the UDP socket to target IP");
 
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&stop)).unwrap();
     while !stop.load(Ordering::Relaxed) {
         let stats = get_ovs_dpctl_show(start);
         match stats {
-            Ok(stats) =>  {
+            Ok(stats) => {
                 output
                     .serialize(&stats)
                     .expect("failed to serializace data to CSV");
-                _ = udp_socket.send(serde_json::to_string(&stats).expect("serialization failed").as_bytes()); // don't care about success
-            },
+                _ = udp_socket.send(
+                    serde_json::to_string(&stats)
+                        .expect("serialization failed")
+                        .as_bytes(),
+                ); // don't care about success
+            }
             Err(err) => warn!("error collecting data: {:?}", err),
         };
 

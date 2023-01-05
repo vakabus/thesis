@@ -6,7 +6,7 @@ While recording all packets by `tcpdump`, we send hand-crafted randomized packet
 
 In parallel, we monitor the number of flow rules installed in the pod's node's kernel (the logs are sent using UDP to the pod, so that they are logged by `tcpdump`).
 
-
+Reasonably readable description of the packet sending procedure can be read in [the source code](../src/experiments/packet_fuzzing.py).
 
 ## Results
 

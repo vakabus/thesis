@@ -95,6 +95,16 @@ EOF
 
 
 
+function configure_systemd_networkd {
+    cat <<EOF | sudo tee /etc/systemd/network/breth0.network
+[Match]
+Name=breth0
+
+[Network]
+DHCP=yes
+EOF
+    sudo systemctl enable systemd-networkd
+}
 
 
 
@@ -108,6 +118,10 @@ sudo dnf install -y htop nload fish micro iproute-tc python3-pip openvswitch ope
 
 # install helper for copying files to the system
 setup_sudo_rsync
+
+# we currently have a working networking, however DHCP will not renew
+# this however does not work as intended
+# configure_systemd_networkd
 
 # install container runtime
 install_docker

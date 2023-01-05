@@ -1,10 +1,6 @@
 use std::time::Duration;
 
-use nix::{
-    sys::{signal::Signal::SIGINT},
-    unistd::Pid,
-};
-use subprocess::{Popen, PopenConfig, unix::PopenExt};
+use subprocess::{unix::PopenExt, Popen, PopenConfig};
 
 pub struct TcpDump {
     process: Popen,
@@ -29,11 +25,8 @@ impl TcpDump {
             return;
         }
 
-        let pid = self
-            .process
-            .pid()
-            .expect("tcpdump not running but it should");
-        nix::sys::signal::kill(Pid::from_raw(pid as i32), SIGINT)
+        self.process
+            .send_signal(libc::SIGINT)
             .expect("failed to send signal to tcpdump");
         let wait_result = self.process.wait_timeout(Duration::from_secs(2));
         let a = wait_result

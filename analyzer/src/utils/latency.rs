@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use subprocess::{Exec, Redirection};
 
 /// turns this line:
@@ -12,7 +12,10 @@ use subprocess::{Exec, Redirection};
 /// into Duration object 53us
 fn parse_ping_output_line(line: &str) -> anyhow::Result<Duration> {
     if !line.starts_with("64 bytes from ") {
-        return Err(anyhow!("ping result line starts with unexpected data: {}", line));
+        return Err(anyhow!(
+            "ping result line starts with unexpected data: {}",
+            line
+        ));
     }
 
     let mut time = line.split(' ').rev().nth(1).unwrap()[5..].split('.');
@@ -26,7 +29,7 @@ fn parse_ping_output_line(line: &str) -> anyhow::Result<Duration> {
 
 pub fn ping(addr: IpAddr) -> anyhow::Result<Duration> {
     let child = Exec::cmd("ping")
-        .args(&["-c", "1",  "-w", "1", &addr.to_string()])
+        .args(&["-c", "1", "-w", "1", &addr.to_string()])
         .stdout(Redirection::Pipe)
         .capture()
         .unwrap();
@@ -49,7 +52,9 @@ pub fn ping_twice(addr: IpAddr) -> Result<(Duration, Duration), anyhow::Error> {
         .unwrap();
 
     if !child.success() {
-        Err(anyhow::Error::msg("ping command exited with non-zero exit code"))
+        Err(anyhow::Error::msg(
+            "ping command exited with non-zero exit code",
+        ))
     } else {
         let out = child.stdout_str();
         let mut lines = out.lines().skip(1); // header
@@ -57,7 +62,10 @@ pub fn ping_twice(addr: IpAddr) -> Result<(Duration, Duration), anyhow::Error> {
         let line1 = lines.next().context("missing first ping stats")?;
         let line2 = lines.next().context("missing second ping stats")?;
 
-        Ok((parse_ping_output_line(line1)?, parse_ping_output_line(line2)?))
+        Ok((
+            parse_ping_output_line(line1)?,
+            parse_ping_output_line(line2)?,
+        ))
     }
 }
 
@@ -95,11 +103,10 @@ pub fn dns_lookup(server: IpAddr) -> Duration {
     after_recv.duration_since(after_send)
 }
 
-
 #[cfg(test)]
 mod test {
-    use std::{net::IpAddr, str::FromStr};
     use crate::utils::latency::dns_lookup;
+    use std::{net::IpAddr, str::FromStr};
 
     #[test]
     fn test_dns_request() {

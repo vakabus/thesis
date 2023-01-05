@@ -13,6 +13,7 @@ from pathlib import Path
 from threading import Thread
 from time import sleep
 from typing import Callable, List, Optional, Type
+import os
 
 import click
 from openssh_wrapper import SSHError
@@ -167,6 +168,26 @@ class VM:
             "--rsync-path='sudo_rsync'" if as_root else "--stats",
             str(source),
             f"{Constants.PROXMOX_TEMPLATE_USER}@[{ip}]:{vmpath}",
+        ]
+
+        logger.debug("rsync args: %s", str(args))
+        r = subprocess.call(args)
+        logger.debug("rsync command exited with exit code %d", r)
+        assert r == 0
+    
+    def rsync_files_back(self, vmpath: str | Path, source: Path, as_root: bool = True):
+        logger.debug("rsync file upload starting: %s -> %s", source, vmpath)
+        ip = self.get_ip()
+        args = [
+            "rsync",
+            "-e",
+            f"ssh {' '.join(Constants.SSH_OPTS)}",
+            "--progress",
+            "-r",
+                # the --stats option is meaningless, we just dont want an empty argument there
+            "--rsync-path='sudo_rsync'" if as_root else "--stats",
+            f"{Constants.PROXMOX_TEMPLATE_USER}@[{ip}]:{vmpath}",
+            str(source),
         ]
 
         logger.debug("rsync args: %s", str(args))
@@ -595,6 +616,17 @@ def upload_arch(master_node: str, source: str, dest: str):
     if Path(source).stat().st_mode & 0o111 > 0:
         vm.run_ssh_command_blocking(f"kubectl exec -ti arch -- chmod +x {dest}")
     #vm.interactive_ssh(["kubectl", "exec", "-ti", "arch", "--", "bash"])
+
+@cli.command()
+@click.argument("master_node", type=str, nargs=1)
+@click.argument("dest", type=click.Path(exists=True, dir_okay=True, file_okay=False), nargs=1)
+def fetch_arch(master_node: str, dest: str):
+    vm = get_vm_by_name(master_node)
+    vm.run_ssh_command_blocking("rm -rf fetch; mkdir fetch; for f in $(kubectl exec arch -- ls | grep -E '^.*pcap\\|.*csv'); do echo $f; kubectl exec arch -- cp $f file; kubectl cp arch:file ./file; mv ./file fetch/$f; done")
+    vm.rsync_files_back("./fetch", Path(dest))
+    logger.info("Files were downloaded to \"fetch\" directory")
+
+
 
 
 if __name__ == "__main__":

@@ -49,15 +49,15 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
 
         // measure
         match ping_twice(addr) {
-            Ok((d1,d2)) => {
+            Ok((d1, d2)) => {
                 // write
                 output
-                .write_record(&[
-                    sleep_time.as_micros().to_string(),
-                    d1.as_micros().to_string(),
-                    d2.as_micros().to_string(),
-                ])
-                .unwrap();
+                    .write_record(&[
+                        sleep_time.as_micros().to_string(),
+                        d1.as_micros().to_string(),
+                        d2.as_micros().to_string(),
+                    ])
+                    .unwrap();
                 output.flush().expect("failed to flush results to disk");
 
                 // print fancy log message and wait for next
@@ -67,7 +67,7 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
             }
             Err(e) => {
                 warn!("ping failed: {}", e);
-                
+
                 // we don't know, what has happened and it could potentially poison our data for the next measurement
                 // so we run a ping again just to make sure the flow rules are in the kernel
                 _ = ping_twice(addr).expect("ping failed for the second time in a row");

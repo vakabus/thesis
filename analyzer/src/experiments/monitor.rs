@@ -94,7 +94,7 @@ impl App {
                     Err(e) => {
                         warn!("error getting ovs dp stats: {:?}", e);
                         data.lock().unwrap().take()
-                    },
+                    }
                 };
 
                 sleep(interval);
@@ -154,7 +154,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             (
                 "Lookup lost",
                 format!("{:?}", stats.as_ref().map(|s| s.ovs.lookup_lost)),
-            )
+            ),
         ]
     };
     let rows = items.into_iter().map(|item| {
@@ -170,9 +170,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         //.highlight_style(selected_style)
         //.highlight_symbol(">> ")
-        .widths(&[
-            Constraint::Length(35),
-            Constraint::Length(20),
-        ]);
+        .widths(&[Constraint::Length(35), Constraint::Length(20)]);
     f.render_stateful_widget(t, rects[0], &mut app.state);
 }
