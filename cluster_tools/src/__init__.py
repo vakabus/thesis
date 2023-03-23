@@ -313,6 +313,16 @@ def current_vms() -> list[VM]:
             if not Constants.is_vmid_protected(vm["vmid"]):  # prevent manipulation with protected VMs
                 vms.append(VM(vmid=vm["vmid"], name=vm["name"], api=host.api.qemu(vm["vmid"]), host=host))
     logger.debug(f"VM detection completed, found {len(vms)} VMs")
+
+    # check for name collisions
+    names = set()
+    for vm in vms:
+        if vm.name not in names:
+            names.add(vm.name)
+        else:
+            logger.error(f"Duplicate VM name '{vm.name}'")
+            exit(1)
+
     return vms
 
 
@@ -622,7 +632,7 @@ def upload_arch(master_node: str, source: str, dest: str):
 @click.argument("dest", type=click.Path(exists=True, dir_okay=True, file_okay=False), nargs=1)
 def fetch_arch(master_node: str, dest: str):
     vm = get_vm_by_name(master_node)
-    vm.run_ssh_command_blocking("rm -rf fetch; mkdir fetch; for f in $(kubectl exec arch -- ls | grep -E '^.*pcap\\|.*csv'); do echo $f; kubectl exec arch -- cp $f file; kubectl cp arch:file ./file; mv ./file fetch/$f; done")
+    vm.run_ssh_command_blocking("rm -rf fetch; mkdir fetch; for f in $(kubectl exec arch -- ls | grep -E '^.*pcap\\|.*csv\\|.*jsonl'); do echo $f; kubectl exec arch -- cp $f file; kubectl cp arch:file ./file; mv ./file fetch/$f; done")
     vm.rsync_files_back("./fetch", Path(dest))
     logger.info("Files were downloaded to \"fetch\" directory")
 

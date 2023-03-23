@@ -6,7 +6,7 @@ use subprocess::{Exec, Redirection};
 
 #[derive(Debug, Serialize)]
 pub struct OVSStats {
-    pub ms_since_start: u64,
+    pub ns_monotonic: u64,
 
     pub lookup_hit: usize,
     pub lookup_missed: usize,
@@ -21,7 +21,7 @@ pub struct OVSStats {
 }
 
 fn geteuid() -> u32 {
-    unsafe { libc::geteuid() as u32 }
+    unsafe { libc::geteuid() }
 }
 
 pub fn get_ovs_dpctl_show(program_start: Instant) -> Result<OVSStats, anyhow::Error> {
@@ -33,6 +33,8 @@ pub fn get_ovs_dpctl_show(program_start: Instant) -> Result<OVSStats, anyhow::Er
         .arg("show")
         .stdout(Redirection::Pipe)
         .capture()?;
+
+    let command_finish_time = nix::time::clock_gettime(nix::time::ClockId::CLOCK_MONOTONIC)?;
 
     let out = child.stdout_str();
     let lines = out.lines();
@@ -173,7 +175,8 @@ pub fn get_ovs_dpctl_show(program_start: Instant) -> Result<OVSStats, anyhow::Er
         .context("parsing step 34")?;
 
     Ok(OVSStats {
-        ms_since_start: Instant::now().duration_since(program_start).as_millis() as u64,
+        ns_monotonic: (command_finish_time.tv_nsec() as u64)
+            .wrapping_add((command_finish_time.tv_sec() as u64).wrapping_mul(1_000_000_000)),
         lookup_hit,
         lookup_missed,
         lookup_lost,

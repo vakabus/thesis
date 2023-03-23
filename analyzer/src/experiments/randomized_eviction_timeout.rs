@@ -33,7 +33,7 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
     info!("results will be written to {}", filename);
     let mut output = WriterBuilder::new().from_path(filename).unwrap();
     output
-        .write_record(&["us_since_last_measurement", "us_latency1", "us_latency2"])
+        .write_record(["us_since_last_measurement", "us_latency1", "us_latency2"])
         .unwrap(); // header
 
     // warmup

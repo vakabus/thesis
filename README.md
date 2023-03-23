@@ -15,5 +15,6 @@ _The thesis supervisor is @jbenc_
 
 - `cluster_tools/` - tools for automated installation of Kubernetes and helpers for setting up experiments
 - `analyzer/` - experiments and related data processing
+- some WIP texts are written and listed at [my website](https://vsq.cz/article)
 
 See the respective directories for information about their content.

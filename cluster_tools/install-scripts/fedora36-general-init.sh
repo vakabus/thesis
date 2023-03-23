@@ -133,4 +133,7 @@ install_kubernetes
 sudo dnf remove -y systemd-resolved
 sudo rm -f /etc/resolv.conf
 
+# install tools used for debugging
+sudo dnf install -y python3-bcc tcpdump scapy python3-psutil
+
 sudo reboot

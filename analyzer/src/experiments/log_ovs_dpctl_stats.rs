@@ -1,18 +1,22 @@
 use std::{
     net::{IpAddr, UdpSocket},
+    path::Path,
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    thread::sleep,
+    thread::{self, sleep},
     time::{Duration, Instant},
 };
 
 use clap::Parser;
 use csv::WriterBuilder;
 
-use crate::utils::ovs::get_ovs_dpctl_show;
+use crate::utils::{
+    dump_file, external_prog::run_external_program_async, ovs::get_ovs_dpctl_show,
+    results_uploader::ResultHandler,
+};
 
 #[derive(Parser, Debug)]
 pub struct LogArgs {
@@ -21,23 +25,36 @@ pub struct LogArgs {
     log_ip: String,
 }
 
-pub fn run(args: LogArgs) {
+pub fn run(args: LogArgs, handler: Box<impl ResultHandler + ?Sized>) {
     // prepare output file
-    let filename = format!(
-        "log_ovs_dpctl_show_{}.csv",
-        chrono::Local::now().to_rfc3339()
+    let filename_dumps = dump_file("log_ovs_dpctl_show", "csv");
+    let filename_trace = dump_file("kernel_flow_table_trace", "jsonl");
+    let filename_log = dump_file("trace_log", "jsonl");
+
+    info!(
+        "results will be written to '{}' and '{}'",
+        filename_dumps, filename_trace
     );
-    info!("results will be written to {}", filename);
-    let mut output = WriterBuilder::new().from_path(filename).unwrap();
+    let mut output = WriterBuilder::new()
+        .from_path(Path::new(&filename_dumps))
+        .unwrap();
 
     let start = Instant::now();
     let ms10 = Duration::from_millis(10);
 
-    let udp_socket = UdpSocket::bind("0.0.0.0:0").expect("failed to bind the UDP socket");
+    /* initialize UDP socket for network logging */
+    let udp_socket = UdpSocket::bind("0.0.0.0:0").expect("failed to bind a UDP socket");
     udp_socket
         .connect((IpAddr::from_str(&args.log_ip).unwrap(), 9876))
         .expect("failed to connect the UDP socket to target IP");
 
+    /* start kernel tracing logging */
+    let kernel_tracer =
+        run_external_program_async(include_bytes!("log_flow_ops.py"), &["-w", &filename_trace, "-l", &filename_log])
+            .expect("failed to start kernel tracing");
+    sleep(Duration::from_secs(5)); /* give it a change to start tracing */
+
+    /* start dumping loop */
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&stop)).unwrap();
     while !stop.load(Ordering::Relaxed) {
@@ -59,6 +76,12 @@ pub fn run(args: LogArgs) {
         sleep(ms10);
     }
 
+    kernel_tracer.wait().expect("failed to stop kernel tracer");
     output.flush().expect("failed to flush data");
-    info!("data flushed, bye bye");
+    info!("data flushed");
+
+    /* process results */
+    handler.handle_result(Path::new(&filename_dumps));
+    handler.handle_result(Path::new(&filename_trace));
+    handler.handle_result(Path::new(&filename_log));
 }
