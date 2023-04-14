@@ -162,7 +162,7 @@ class VM:
             "rsync",
             "-e",
             f"ssh {' '.join(Constants.SSH_OPTS)}",
-            "--progress",
+            #"--progress",
             "-r",
                 # the --stats option is meaningless, we just dont want an empty argument there
             "--rsync-path='sudo_rsync'" if as_root else "--stats",
@@ -405,6 +405,9 @@ def clone_fedora36(name: str, vmid: int | None = None) -> VM:
 
     return vm
 
+def node_hostname(num: int) -> str:
+    assert num > 0
+    return f"kb{num}"
 
 @click.group
 def cli():
@@ -490,14 +493,20 @@ def provision_node_impl(
             vm.wait_for_systemd()
 
             vm.upload_file(Path("install-scripts/fedora36-general-init.sh"), "/tmp/init.sh")
-            vm.run_ssh_command_blocking(f"bash /tmp/init.sh {name}")
-            # the previous script ends with a reboot
+            ret = vm.run_ssh_command_blocking(f"bash /tmp/init.sh {name}")
+            if ret != 0:
+                raise RuntimeError(f"init failed with exit code {ret}")
+            
+            ret = vm.run_ssh_command_blocking("sudo reboot")
+            assert ret != 0
             sleep(1)
             vm.wait_for_systemd()
 
             # copy ovn-kubernetes repository to the user's home and install the binaries
             vm.rsync_files("ovn-kubernetes", "", as_root=False)
-            vm.run_ssh_command_blocking("sudo make -C ovn-kubernetes/go-controller install")
+            ret = vm.run_ssh_command_blocking("sudo make -C ovn-kubernetes/go-controller install")
+            if ret != 0:
+                raise RuntimeError(f"ovn prep failed with exit code {ret}")
 
             if post_init_script:
                 vm.upload_file(Path(post_init_script), "/tmp/post-init-script")
@@ -516,11 +525,13 @@ def provision_node_impl(
 
 
 @cli.command("provision")
-@click.argument("names", required=True, nargs=-1, type=str)
-def provision(names: List[str]):
-    if len(names) == 0:
+@click.argument("num_nodes", required=True, nargs=1, type=int)
+def provision(num_nodes: int):
+    if num_nodes == 0:
         logger.error("at least one node is required in a cluster")
         return 1
+    
+    names = list(map(node_hostname, range(1, num_nodes+1)))
 
     threads: list[Thread] = []
 
@@ -592,37 +603,64 @@ def deploy_arch(master_node: str):
     sleep(1)
     vm.run_ssh_command_blocking("while ! (kubectl describe pod arch | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
 
+@cli.group("pod")
+def pod():
+    """
+    Commands related to pods
+    """
+    
 
-@cli.command()
-@click.argument("master_node", type=str, nargs=1)
-def get_arch_ip(master_node: str):
-    vm = get_vm_by_name(master_node)
-    vm.run_ssh_command_blocking("while ! (kubectl describe pod arch | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
+@pod.command("deploy")
+@click.argument("pod_name", type=str, nargs=1)
+def deploy_pod(pod_name: str):
+    vm = get_vm_by_name(node_hostname(1))
+
+    def_file = Path(f"kube_configs/{pod_name}.yaml")
+    if not def_file.exists():
+        print(f"Pod definition file with name '{pod_name}' does not exist!")
+        exit(1)
+
+    vm.upload_file(def_file, "/pod.yaml")
+    vm.run_ssh_command_blocking("kubectl apply -f /pod.yaml")
+    sleep(1)
+    vm.run_ssh_command_blocking(f"while ! (kubectl describe pod {pod_name} | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
+
+@pod.command("delete")
+@click.argument("pod_name", type=str, nargs=1)
+def pod_delete(pod_name: str):
+    vm = get_vm_by_name(node_hostname(1))
+
+    def_file = Path(f"kube_configs/{pod_name}.yaml")
+    if not def_file.exists():
+        print(f"Pod definition file with name '{pod_name}' does not exist!")
+        exit(1)
+
+    vm.upload_file(def_file, "/pod.yaml")
+    vm.run_ssh_command_blocking("kubectl delete -f /pod.yaml")
+
+@pod.command("ip")
+@click.argument("pod_name", type=str, nargs=1)
+def pod_ip(pod_name: str):
+    vm = get_vm_by_name(node_hostname(1))
+    vm.run_ssh_command_blocking(f"while ! (kubectl describe pod {pod_name} | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
 
 
-@cli.command()
-@click.argument("master_node", type=str, nargs=1)
-def destroy_arch(master_node: str):
-    vm = get_vm_by_name(master_node)
-    vm.upload_file(Path("kube_configs/arch.yaml"), "/arch.yaml")
-    vm.run_ssh_command_blocking("kubectl delete -f /arch.yaml")
+
+@pod.command("ssh")
+@click.argument("pod", type=str, nargs=1)
+def pod_shell(pod: str):
+    vm = get_vm_by_name(node_hostname(1))
+    vm.interactive_ssh(["kubectl", "exec", "-ti", pod, "--", "bash"])
 
 
-@cli.command()
-@click.argument("master_node", type=str, nargs=1)
-def shell_arch(master_node: str):
-    vm = get_vm_by_name(master_node)
-    vm.interactive_ssh(["kubectl", "exec", "-ti", "arch", "--", "bash"])
-
-
-@cli.command()
-@click.argument("master_node", type=str, nargs=1)
+@pod.command("upload")
+@click.argument("pod", type=str, nargs=1)
 @click.argument("source", type=click.Path(exists=True), nargs=1)
 @click.argument("dest", type=click.Path(exists=False), nargs=1)
-def upload_arch(master_node: str, source: str, dest: str):
-    vm = get_vm_by_name(master_node)
+def pod_upload(pod: str, source: str, dest: str):
+    vm = get_vm_by_name(node_hostname(1))
     vm.rsync_files(source, "/.upload")
-    vm.run_ssh_command_blocking(f"kubectl cp /.upload default/arch:{dest}; sudo rm -fr /.upload")
+    vm.run_ssh_command_blocking(f"kubectl cp /.upload default/{pod}:{dest}; sudo rm -fr /.upload")
     if Path(source).stat().st_mode & 0o111 > 0:
         vm.run_ssh_command_blocking(f"kubectl exec -ti arch -- chmod +x {dest}")
     #vm.interactive_ssh(["kubectl", "exec", "-ti", "arch", "--", "bash"])

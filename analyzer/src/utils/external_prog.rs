@@ -11,12 +11,12 @@ use std::{
 use memfd::{Memfd, MemfdOptions};
 use subprocess::{unix::PopenExt, Popen};
 
-pub struct RunningPython {
+pub struct ExternalProg {
     popen: Popen,
     _mfd: Memfd, // just to keep a reference to it the whole time the program is running
 }
 
-impl RunningPython {
+impl ExternalProg {
     pub fn wait(mut self) -> anyhow::Result<()> {
         let stop = Arc::new(AtomicBool::new(false));
         signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&stop)).unwrap();
@@ -57,7 +57,7 @@ impl RunningPython {
     }
 }
 
-pub fn run_external_program_async(script: &[u8], args: &[&str]) -> anyhow::Result<RunningPython> {
+pub fn run_external_program_async(script: &[u8], args: &[&str]) -> anyhow::Result<ExternalProg> {
     let mfd = MemfdOptions::default().create("external-program")?;
     mfd.as_file().write_all(script)?;
     let script_fd = mfd.as_file().as_raw_fd();
@@ -67,7 +67,7 @@ pub fn run_external_program_async(script: &[u8], args: &[&str]) -> anyhow::Resul
         .detached()
         .popen()?;
 
-    Ok(RunningPython {
+    Ok(ExternalProg {
         popen: exec,
         _mfd: mfd,
     })

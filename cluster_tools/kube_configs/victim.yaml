@@ -1,14 +1,17 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: arch2
+  name: victim
   namespace: default
 spec:
+  hostname: victim
   containers:
-  - name: arch2
+  - name: arch
     image: docker.io/archlinux:latest
     command:
       - sleep
       - "infinity"
     imagePullPolicy: IfNotPresent
   restartPolicy: Always
+  nodeSelector:
+    "kubernetes.io/hostname": "kb2"

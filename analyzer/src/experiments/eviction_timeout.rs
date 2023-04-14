@@ -59,7 +59,7 @@ pub fn run_experiment(args: EvictionTimeoutArgs) {
     info!("results will be written to {}", filename);
     let mut output = WriterBuilder::new().from_path(filename).unwrap();
     output
-        .write_record(&["us_between_measurements", "us_latency1", "us_latency2"])
+        .write_record(["us_between_measurements", "us_latency1", "us_latency2"])
         .unwrap(); // header
 
     loop {

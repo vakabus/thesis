@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import signal
 from bcc import BPF
 import argparse
 import sys
@@ -7,7 +8,8 @@ import time
 import json
 import enum
 import subprocess
-
+import os
+from dataclasses import dataclass
 
 ebpf_source = """
 #include <linux/sched.h>
@@ -67,7 +69,8 @@ static inline int handle(u32 type) {
     events.ringbuf_submit(event, 0);
     return 0;
 }
-
+"""
+ebpf_source_table_ops = """
 int kprobe__ovs_flow_tbl_flush(struct pt_regs *ctx) {
     return handle(EVENT_TABLE_FLUSH);
 }
@@ -80,6 +83,14 @@ int kprobe__ovs_flow_tbl_remove(struct pt_regs *ctx) {
     return handle(EVENT_TABLE_REMOVE);
 }
 
+"""
+ebpf_source_upcalls = """
+int kprobe__ovs_dp_upcall(struct pt_regs *ctx) {
+    return handle(EVENT_UPCALL);
+}
+"""
+
+ebpf_source_cmd = """
 int kprobe__ovs_flow_cmd_set(struct pt_regs *ctx) {
     return handle(EVENT_FLOW_CMD_SET);
 }
@@ -91,10 +102,6 @@ int kprobe__ovs_flow_cmd_del(struct pt_regs *ctx) {
 int kprobe__ovs_flow_cmd_new(struct pt_regs *ctx) {
     return handle(EVENT_FLOW_CMD_NEW);
 }
-
-int kprobe__ovs_dp_upcall(struct pt_regs *ctx) {
-    return handle(EVENT_UPCALL);
-}
 """
 
 class EventType(enum.Enum):
@@ -105,6 +112,22 @@ class EventType(enum.Enum):
     TABLE_INSERT = 4
     TABLE_REMOVE = 5
     UPCALL = 6
+
+
+@dataclass
+class Event:
+    event: EventType
+    cpu: int
+    pid: int
+    ts: int
+    comm: str
+
+    @staticmethod
+    def write_csv_header(file):
+        print("event,cpu,pid,ts,comm", file=file)
+    
+    def write_csv_line(self, file):
+        print(f"{self.event},{self.cpu},{self.pid},{self.ts},{self.comm}", file=file)
 
 def event_to_dict(event):
     event_dict = {}
@@ -131,8 +154,7 @@ def receive_event_bcc(ctx, data, size):
     event = b['events'].event(data)
 
     assert export_file is not None
-    export_file.write(json.dumps(event_to_dict(event)))
-    export_file.write("\n")
+    Event(**event_to_dict(event)).write_csv_line(export_file)
 
 
 def next_power_of_two(val):
@@ -170,6 +192,13 @@ def main():
     parser.add_argument("-l", "--log",
                         help="Write log to FILE",
                         type=str, required=True, metavar="FILE")
+    parser.add_argument("--no-cmd", help="Do not trace commands between userspace and kernel",
+                        action='store_false', default=True, dest="cmd")  # inverted
+    parser.add_argument("--no-table-ops", help="Do not trace flow table changes",
+                        action="store_false", default=True, dest="table")  # inverted
+    parser.add_argument("--no-upcalls", help="Do not trace upcalls",
+                        action="store_false", default=True, dest="upcalls")  # inverted
+    parser.add_argument("--signal-ready", help="Send SIGUSR1 to parent when tracing ready", action="store_true", default=False)
 
 
 
@@ -183,6 +212,7 @@ def main():
     #
     try:
         export_file = open(options.write_events, "w")
+        Event.write_csv_header(export_file)
     except (FileNotFoundError, IOError, PermissionError) as e:
         print("ERROR: Can't create export file \"{}\": {}".format(
             options.write_events, e.strerror))
@@ -201,6 +231,12 @@ def main():
     
     source = ebpf_source.replace("<BUFFER_PAGE_CNT>",
                             str(options.buffer_page_count))
+    if options.cmd:
+        source += ebpf_source_cmd
+    if options.upcalls:
+        source += ebpf_source_upcalls
+    if options.table:
+        source += ebpf_source_table_ops
 
     b = BPF(text=source, debug=options.debug & 0xffffff)
 
@@ -209,6 +245,10 @@ def main():
     #
     print("- Capturing events [Press ^C to stop]...")
     subprocess.check_call(["ovs-dpctl","del-flows"])  # makes sure there are no flows we don't know about
+    if options.signal_ready:
+         os.kill(os.getppid(), signal.SIGUSR1)
+         
+
     events_received = 0
 
 
@@ -233,4 +273,5 @@ def main():
 
 
 if __name__ == '__main__':
+    os.setpgrp()
     main()

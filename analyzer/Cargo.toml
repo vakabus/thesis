@@ -11,11 +11,14 @@ chrono = "0.4.23"
 clap = { version = "4.0.29", features = ["derive"] }
 crossterm = "0.25.0"
 csv = "1.1.6"
+iptables = "0.5.0"
 libc = "0.2.139"
 local-ip-address = "0.5.0"
 log = "0.4.17"
 memfd = "0.6.2"
 nix = "0.26.1"
+pnet = { version = "0.33.0", features = ["pnet_transport", "pnet_datalink", "pnet_sys", "ipnetwork", "std"] }
+procfs = "0.15.1"
 rand = "0.8.5"
 serde = { version = "1.0.152", features = ["serde_derive"] }
 serde_json = "1.0.91"

@@ -148,25 +148,24 @@ sendp( Ether(src=RandMAC()) / IP(src="192.168.1.1", dst="192.168.1.1") / Padding
 sleep(11)
 
 # random MAC address IP packet, src only, but only "locally administered unicast"                                              <------------ GOOD
-tag("Ether(dst=02:*)")
+tag("Ether(src=02:*)")
 sendp( Ether(src=RandMAC("02")) / IP(src="192.168.1.1", dst="192.168.1.1") / Padding(load="A"*32), count=1000)
 sleep(11)
 
 # random MAC address IP packet, src only, but only "universally administered unicast"                                          <------------ GOOD
-tag("Ether(dst=04:*)")
+tag("Ether(src=04:*)")
 sendp( Ether(src=RandMAC("04")) / IP(src="192.168.1.1", dst="192.168.1.1") / Padding(load="A"*32), count=1000)
 sleep(11)
 
 # random MAC address IP packet, src only, but only "locally administered multicast"
-tag("Ether(dst=03:*)")
+tag("Ether(src=03:*)")
 sendp( Ether(src=RandMAC("03")) / IP(src="192.168.1.1", dst="192.168.1.1") / Padding(load="A"*32), count=1000)
 sleep(11)
 
 # random MAC address IP packet, src only, but only "universally administered multicast"
-tag("Ether(dst=01:*)")
+tag("Ether(src=01:*)")
 sendp( Ether(src=RandMAC("01")) / IP(src="192.168.1.1", dst="192.168.1.1") / Padding(load="A"*32), count=1000)
 sleep(11)
-
 
 # random IP version
 tag("IP(version)")
@@ -202,6 +201,21 @@ sleep(11)
 # random protocol (Padding is there so that there is some actual data following the IP packet )
 tag("IP(proto)")
 sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IP(dst="10.244.1.1", proto=RandByte()) / Padding(load="A"*48), count=1000)
+sleep(11)
+
+# random vlan tag
+tag("vlan(any) / IP")
+sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / fuzz(Dot1Q()) / IP(dst="192.168.1.1"), count=1000)
+sleep(11)
+
+# random double vlan tag
+tag("vlan(any) / vlan(any) / IP")
+sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / fuzz(Dot1Q()) / fuzz(Dot1Q()) / IP(dst="192.168.1.1"), count=1000)
+sleep(11)
+
+# random inner vlan tag
+tag("vlan(fixed) / vlan(any) / IP")
+sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / fuzz(Dot1Q(vlan=42, prio=1)) / fuzz(Dot1Q()) / IP(dst="192.168.1.1"), count=1000)
 sleep(11)
 
 # random IP address src
@@ -343,6 +357,14 @@ tag("IP()/UDP(dport)")
 sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IP(dst="10.244.1.1")/ UDP(dport=RandShort(), sport=2222), count=1000)
 sleep(11)
 
+tag("IP()/UDP(dport >1024)")
+sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IP(dst="10.244.1.1")/ UDP(dport=RandNum(2**10, 2**16-1), sport=2222), count=1000)
+sleep(11)
+
+tag("IP()/UDP(dport <1024)")
+sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IP(dst="10.244.1.1")/ UDP(dport=RandNum(1, 2**10), sport=2222), count=1000)
+sleep(11)
+
 tag("IP()/UDP(sport)")
 sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IP(dst="10.244.1.1")/ UDP(dport=2222, sport=RandShort()), count=1000)
 sleep(11)
@@ -376,23 +398,23 @@ sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / ARP(pdst=RandIP(), hwdst="ff:ee:dd:cc:bb:
 sleep(11)
 
 tag("ICMPv6ND_RS")
-sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IPv6(dst="2001:67c:2190:1506:30bb:feff:feeb:b72f") / ICMPv6ND_RS(code=RandByte(), res=RandInt()), count=1000)
+sendp(Ether(dst="ff:ff:ff:ff:ff:ff") / IPv6(dst="ff01::1") / ICMPv6ND_RS(code=RandByte(), res=RandInt()), count=1000)
 sleep(11)
 
 tag("ICMPv6ND_Redirect")
-sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IPv6(dst="2001:67c:2190:1506:30bb:feff:feeb:b72f") / ICMPv6ND_Redirect(code=RandByte(), tgt=RandIP6(), dst=RandIP6()), count=1000)
+sendp(Ether(dst="ff:ff:ff:ff:ff:ff") / IPv6(dst="ff01::1") / ICMPv6ND_Redirect(code=RandByte(), tgt=RandIP6(), dst=RandIP6()), count=1000)
 sleep(11)
 
 tag("ICMPv6ND_RA")
-sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IPv6(dst="2001:67c:2190:1506:30bb:feff:feeb:b72f") / ICMPv6ND_RA(chlim=RandByte(), M=RandChoice(0,1),O=RandChoice(0,1), H=RandChoice(0,1), P=RandChoice(0,1), res=RandChoice(0,1,2,3), code=RandByte()), count=1000)
+sendp(Ether(dst="ff:ff:ff:ff:ff:ff") / IPv6(dst="ff01::1") / ICMPv6ND_RA(chlim=RandByte(), M=RandChoice(0,1),O=RandChoice(0,1), H=RandChoice(0,1), P=RandChoice(0,1), res=RandChoice(0,1,2,3), code=RandByte()), count=1000)
 sleep(11)
 
 tag("ICMPv6ND_NS")
-sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IPv6(dst="2001:67c:2190:1506:30bb:feff:feeb:b72f") / ICMPv6ND_NS(code=RandByte(), res=RandInt(), tgt=RandIP6()), count=1000)
+sendp(Ether(dst="ff:ff:ff:ff:ff:ff") / IPv6(dst="ff01::1") / ICMPv6ND_NS(code=RandByte(), res=RandInt(), tgt=RandIP6()), count=1000)
 sleep(11)
 
 tag("ICMPv6ND_NA")
-sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IPv6(dst="2001:67c:2190:1506:30bb:feff:feeb:b72f") / ICMPv6ND_NA(code=RandByte(), R=RandChoice(0,1), S=RandChoice(0,1), O=RandChoice(0,1), res=RandNum(0, 2**29-1), tgt=RandIP6()), count=1000)
+sendp(Ether(dst="ff:ff:ff:ff:ff:ff") / IPv6(dst="ff01::1") / ICMPv6ND_NA(code=RandByte(), R=RandChoice(0,1), S=RandChoice(0,1), O=RandChoice(0,1), res=RandNum(0, 2**29-1), tgt=RandIP6()), count=1000)
 sleep(11)
 
 tag("end")

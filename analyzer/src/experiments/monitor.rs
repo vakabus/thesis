@@ -2,11 +2,11 @@
 //!
 use clap::Parser;
 
-use crate::utils::ovs::{get_ovs_dpctl_show, OVSStats};
+use crate::utils::ovs::{OVSStats};
 use std::{
     sync::{Arc, Mutex},
     thread::{self, sleep},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use crossterm::{
@@ -85,9 +85,8 @@ impl App {
         let interval = Duration::from_millis(self.args.interval_ms);
 
         let _handle = thread::spawn(move || {
-            let program_start = Instant::now();
             loop {
-                let new_stats = get_ovs_dpctl_show(program_start);
+                let new_stats = get_ovs_dpctl_show();
                 let _old_stats = match new_stats {
                     Ok(new_stats) => data.lock().unwrap().replace(Stats { ovs: new_stats }),
                     // we can't do much about errors

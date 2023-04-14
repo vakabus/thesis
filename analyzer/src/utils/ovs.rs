@@ -1,8 +1,8 @@
-use std::time::Instant;
-
 use anyhow::Context;
 use serde::Serialize;
 use subprocess::{Exec, Redirection};
+
+use super::collector::{CSVCollector, Monitor};
 
 #[derive(Debug, Serialize)]
 pub struct OVSStats {
@@ -24,7 +24,24 @@ fn geteuid() -> u32 {
     unsafe { libc::geteuid() }
 }
 
-pub fn get_ovs_dpctl_show(program_start: Instant) -> Result<OVSStats, anyhow::Error> {
+pub struct OvsDpctlMonitor {}
+
+impl Monitor for OvsDpctlMonitor {
+    type Stats = OVSStats;
+
+    fn new() -> anyhow::Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(OvsDpctlMonitor {})
+    }
+
+    fn collect(&mut self) -> anyhow::Result<Self::Stats> {
+        get_ovs_dpctl_show()
+    }
+}
+
+fn get_ovs_dpctl_show() -> anyhow::Result<OVSStats> {
     if geteuid() != 0 {
         panic!("trying to call `ovs-dpctl show` without root privileges");
     }
@@ -189,3 +206,5 @@ pub fn get_ovs_dpctl_show(program_start: Instant) -> Result<OVSStats, anyhow::Er
         cache_masks_size,
     })
 }
+
+pub type OvsDpctlCollector = CSVCollector<OvsDpctlMonitor>;

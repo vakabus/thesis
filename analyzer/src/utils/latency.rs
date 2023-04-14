@@ -1,11 +1,14 @@
 use core::panic;
 use std::{
-    net::{IpAddr, UdpSocket},
+    net::{IpAddr, UdpSocket, Ipv4Addr},
     time::{Duration, Instant},
 };
 
 use anyhow::{anyhow, Context};
+use serde::Serialize;
 use subprocess::{Exec, Redirection};
+
+use super::{collector::{CSVCollector, Monitor}, clock_ns};
 
 /// turns this line:
 /// >  64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.053 ms
@@ -40,6 +43,39 @@ pub fn ping(addr: IpAddr) -> anyhow::Result<Duration> {
         let out = child.stdout_str();
         let res = out.lines().nth(1).unwrap();
         parse_ping_output_line(res)
+    }
+}
+
+#[derive(Serialize)]
+pub struct PingStat {
+    ts: u64,
+    latency_us: u64,
+}
+pub struct PingMonitor {
+    addr: IpAddr,
+}
+impl Monitor for PingMonitor {
+    type Stats = PingStat;
+
+    fn new() -> anyhow::Result<Self>
+    where
+        Self: Sized {
+        Ok(PingMonitor {
+            addr: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+        })
+    }
+
+    fn collect(&mut self) -> anyhow::Result<Self::Stats> {
+        match ping(self.addr) {
+            Ok(d) => {
+                Ok(PingStat { ts: clock_ns()?, latency_us: d.as_micros() as u64 })
+            },
+            Err(e) => {
+                warn!("ping failed: {}" ,e);
+                Ok(PingStat { ts: clock_ns()?, latency_us: u64::MAX })
+            }
+        }
+        
     }
 }
 
@@ -102,6 +138,9 @@ pub fn dns_lookup(server: IpAddr) -> Duration {
 
     after_recv.duration_since(after_send)
 }
+
+
+pub type PingCollector = CSVCollector<PingMonitor>;
 
 #[cfg(test)]
 mod test {

@@ -30,14 +30,8 @@ enum Experiments {
         experiments::randomized_eviction_timeout::RandomizedEvictionTimeoutArgs,
     ),
 
-    /// rapidly send UDP packets to IPv4 in a defined sequence
-    Blast(experiments::blast::BlastArgs),
-
     /// collect ovs-dpctl show stats
-    LogFlowStats(experiments::log_ovs_dpctl_stats::LogArgs),
-
-    /// TUI with real-time system information
-    Monitor(experiments::monitor::MonitorArgs),
+    NodeLogger(experiments::node_logger::LogNodeArgs),
 
     /// run packet fuzzing
     PacketFuzz(experiments::packet_fuzzing::PacketFuzzingArgs),
@@ -47,9 +41,18 @@ enum Experiments {
 
     /// Install dependencies on the distro
     InstallDependencies(experiments::install_dependencies::InstallDepsArgs),
+
+    /// Fill flow table with given number of rules
+    PacketFlood(experiments::packet_flood::PacketFloodArgs),
+
+    /// Ethernet echo server
+    Reflector(experiments::pkt_reflector::ReflectorArgs),
+
+    /// Innocent victim
+    Victim(experiments::victim::VictimArgs),
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     // init logging
     simple_logger::init_with_level(Level::Debug).unwrap();
 
@@ -68,13 +71,16 @@ fn main() {
         Experiments::RandomizedEvictionTimeout(ev) => {
             experiments::randomized_eviction_timeout::run(ev)
         }
-        Experiments::Blast(ev) => experiments::blast::run(ev),
-        Experiments::LogFlowStats(ev) => experiments::log_ovs_dpctl_stats::run(ev, handler),
-        Experiments::Monitor(ev) => experiments::monitor::run(ev),
+        Experiments::NodeLogger(ev) => experiments::node_logger::run(ev, handler)?,
         Experiments::PacketFuzz(ev) => experiments::packet_fuzzing::run_experiment(ev, handler),
         Experiments::LogFlowOps(ev) => experiments::log_flow_ops::run_experiment(ev, handler),
         Experiments::InstallDependencies(ev) => {
             experiments::install_dependencies::run_experiment(ev)
         }
-    }
+        Experiments::PacketFlood(ev) => experiments::packet_flood::run(ev)?,
+        Experiments::Reflector(ev) => experiments::pkt_reflector::run(ev)?,
+        Experiments::Victim(ev) => experiments::victim::run(ev, handler)?,
+    };
+
+    Ok(())
 }

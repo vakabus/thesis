@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: reflector
+  namespace: default
+spec:
+  selector:
+    app.kubernetes.io/name: reflector
+  ports:
+    - port: 80
+      protocol: UDP
+      name: udp
+    - port: 80
+      protocol: TCP
+      name: tcp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: reflector
+  namespace: default
+  labels:
+    app.kubernetes.io/name: reflector
+spec:
+  containers:
+  - name: reflector
+    image: registry.homelab.vsq.cz/analyzer
+    args:
+      - reflector
+    imagePullPolicy: Always
+    securityContext:
+      privileged: true
+  restartPolicy: Always
+  nodeSelector:
+    "kubernetes.io/hostname": "kb3"

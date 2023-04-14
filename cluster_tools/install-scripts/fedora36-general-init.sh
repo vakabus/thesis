@@ -96,13 +96,19 @@ EOF
 
 
 function configure_systemd_networkd {
+    ip=22${1#"kb"}
     cat <<EOF | sudo tee /etc/systemd/network/breth0.network
 [Match]
-Name=breth0
+Name=eth0
 
 [Network]
-DHCP=yes
+Address=192.168.1.$ip/24
+Gateway=192.168.1.1
+DNS=192.168.1.1
 EOF
+
+    sudo systemctl disable NetworkManager
+    sudo systemctl mask NetworkManager
     sudo systemctl enable systemd-networkd
 }
 
@@ -113,7 +119,12 @@ EOF
 
 # basic system setup
 sudo hostnamectl set-hostname $1
+
 sudo dnf remove -y zram-generator-defaults
+sudo touch /etc/systemd/zram-generator.conf
+echo "zram" | sudo tee /etc/modprobe.d/blacklist
+sudo systemctl mask dev-zram0.device
+
 sudo dnf install -y htop nload fish micro iproute-tc python3-pip openvswitch openvswitch-devel rsync make ovn ovn-host ovn-vtep ovn-central ldns-utils
 
 # install helper for copying files to the system
@@ -121,7 +132,13 @@ setup_sudo_rsync
 
 # we currently have a working networking, however DHCP will not renew
 # this however does not work as intended
-# configure_systemd_networkd
+configure_systemd_networkd $1
+#
+# remove systemd-resolved before reboot
+# sudo dnf remove -y systemd-resolved
+# sudo rm -f /etc/resolv.conf
+echo "DNS=192.168.1.1" | sudo tee -a /etc/systemd/resolved.conf
+
 
 # install container runtime
 install_docker
@@ -129,11 +146,9 @@ install_docker
 # install Kubernetes
 install_kubernetes
 
-# remove systemd-resolved before reboot
-sudo dnf remove -y systemd-resolved
-sudo rm -f /etc/resolv.conf
-
 # install tools used for debugging
 sudo dnf install -y python3-bcc tcpdump scapy python3-psutil
 
-sudo reboot
+
+# schedule reboot and successfully exit
+echo "Will reboot shortly..."

@@ -11,7 +11,6 @@ use std::{
     time::Duration,
 };
 
-use chrono::Local;
 use clap::Parser;
 use local_ip_address::local_ip;
 

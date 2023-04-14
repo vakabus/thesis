@@ -1,17 +1,17 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: arch
+  name: netserver
   namespace: default
 spec:
-  hostname: arch
+  hostname: netserver
   containers:
   - name: arch
-    image: docker.io/archlinux:latest
+    image: quay.io/networkstatic/netserver
     command:
-      - sleep
-      - "infinity"
+      - netserver
+      - "-D"
     imagePullPolicy: IfNotPresent
   restartPolicy: Always
   nodeSelector:
-    "kubernetes.io/hostname": "kb2"
+    "kubernetes.io/hostname": "kb3"
