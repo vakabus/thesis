@@ -1,4 +1,5 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
 
 import logging
 import shlex
@@ -12,7 +13,7 @@ from itertools import count
 from pathlib import Path
 from threading import Thread
 from time import sleep
-from typing import Callable, List, Optional, Type
+from typing import Callable, List, Literal, Optional, Type, TypeVar
 import os
 
 import click
@@ -32,8 +33,8 @@ class NotReadyError(Exception):
 class Constants:
     PROXMOX_API_HOST: str = "tapir.folk-stork.ts.net"
     PROXMOX_USER = "root@pam"
-    PROXMOX_TEMPLATE_VMIDS: dict[str, int] = {"tapir": 9010, "zebra": 9011}
-    PROXMOX_TEMPLATE_USER: str = "vasek"
+    PROXMOX_TEMPLATE_VMIDS: dict[str, int] = {"tapir": 9020, "zebra": 9011}
+    PROXMOX_TEMPLATE_USER: str = "root"
     PROXMOX_PROTECTED_VMIDS: list[Callable[[int], bool]] = [
         lambda vmid: vmid < 500,
         lambda vmid: vmid >= 1000
@@ -97,8 +98,81 @@ class Host:
         return allocated_cpus / cpus
 
 
+class Machine(ABC):
+    @abstractmethod
+    def wait_for_systemd(self) -> None:
+        pass
+
+    @abstractmethod
+    def upload_files(self, file: Path, vmpath: str | Path):
+        pass
+
+    @abstractmethod
+    def run_ssh_command_blocking(self, command: str | list[str]) -> int:
+        pass
+
+    @abstractmethod
+    def run_ssh_command_get_output(self, command: str | list[str]) -> str:
+        pass
+
+
+def rsync(source: Path | str, dest: Path | str, user: str, host: str, sudo_rsync:bool=False):
+    args = [
+        "rsync",
+        "-e",
+        f"ssh {' '.join(Constants.SSH_OPTS)}",
+        #"--progress",
+        "-a",
+            # the --stats option is meaningless, we just dont want an empty argument there
+        #"--rsync-path='sudo_rsync'" if sudo_rsync else "--stats",
+        str(source),
+        f"{user}@[{host}]:{dest}",
+    ]
+    r = subprocess.call(args)
+    assert r == 0
+
+
+T = TypeVar("T")
+def _ssh(invoke: Callable[[list[str]], T], user: str, host: str, opts: list[str], command: list[str] | str) -> T:
+    if isinstance(command, str):
+        command = shlex.split(command)
+    return invoke(
+        [
+            "ssh",
+            *opts,
+            f"{user}@{host}",
+        ]
+        + command
+    )
+
+def ssh_call(user: str, host: str, opts: list[str], command: list[str] | str) -> int:
+    return _ssh(subprocess.call, user, host, opts, command)
+
+def ssh_output(user: str, host: str, opts: list[str], command: list[str] | str) -> str:
+    invoke = lambda *a, **k: subprocess.check_output(*a, **k).decode("utf-8").strip()
+    return _ssh(invoke, user, host, opts, command)
+
 @dataclass
-class VM:
+class NetMachine(Machine):
+    ip: str
+
+    def wait_for_systemd(self) -> None:
+        while self.run_ssh_command_blocking("true"):
+            sleep(1)
+
+    def upload_files(self, file: Path, dest: str | Path):
+        rsync(file, dest, "root", self.ip)
+
+    def run_ssh_command_blocking(self, command: str | list[str]) -> int:
+        return ssh_call("root", self.ip, Constants.SSH_OPTS, command)
+
+
+    def run_ssh_command_get_output(self, command: str | list[str]) -> str:
+        return ssh_output("root", self.ip, Constants.SSH_OPTS, command)
+
+
+@dataclass
+class VM(Machine):
     api: ProxmoxResource
     vmid: int
     name: str
@@ -138,6 +212,7 @@ class VM:
         logger.info("waiting for system boot: system booted, waiting for systemd initialization")
 
         # wait for proper IP assignment
+        logger.debug("waiting for ip")
         while True:
             try:
                 _ = self.get_ip()
@@ -145,8 +220,9 @@ class VM:
             except NotReadyError:
                 pass
 
-        while self.run_ssh_command_blocking("systemctl is-system-running --wait"):
-            sleep(0.3)
+        logger.debug("waiting for functional ssh")
+        while self.run_ssh_command_blocking("true"):
+            sleep(1)
 
     def upload_file(self, file: Path, vmpath: str | Path):
         logger.debug("file upload starting: %s -> %s", file, vmpath)
@@ -155,25 +231,8 @@ class VM:
         self.api.agent("file-write").post(content=data, file=str(vmpath), encode=int(False))
         logger.debug("file upload complete")
 
-    def rsync_files(self, source: Path, vmpath: str | Path, as_root: bool = True):
-        logger.debug("rsync file upload starting: %s -> %s", source, vmpath)
-        ip = self.get_ip()
-        args = [
-            "rsync",
-            "-e",
-            f"ssh {' '.join(Constants.SSH_OPTS)}",
-            #"--progress",
-            "-r",
-                # the --stats option is meaningless, we just dont want an empty argument there
-            "--rsync-path='sudo_rsync'" if as_root else "--stats",
-            str(source),
-            f"{Constants.PROXMOX_TEMPLATE_USER}@[{ip}]:{vmpath}",
-        ]
-
-        logger.debug("rsync args: %s", str(args))
-        r = subprocess.call(args)
-        logger.debug("rsync command exited with exit code %d", r)
-        assert r == 0
+    def upload_files(self, source: Path, vmpath: str | Path, as_root: bool = True):
+        rsync(source, vmpath, Constants.PROXMOX_TEMPLATE_USER, self.get_ip(), sudo_rsync=as_root)
     
     def rsync_files_back(self, vmpath: str | Path, source: Path, as_root: bool = True):
         logger.debug("rsync file upload starting: %s -> %s", source, vmpath)
@@ -215,32 +274,10 @@ class VM:
         return exitcode
 
     def run_ssh_command_blocking(self, command: str | list[str]) -> int:
-        ip = self.get_ip()
-        if isinstance(command, str):
-            command = shlex.split(command)
-        retcode = subprocess.call(
-            [
-                "ssh",
-                *Constants.SSH_OPTS,
-                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
-            ]
-            + command
-        )
-        return retcode
+        return ssh_call(Constants.PROXMOX_TEMPLATE_USER, str(self.get_ip()), Constants.SSH_OPTS, command)
 
     def run_ssh_command_get_output(self, command: str | list[str]) -> str:
-        ip = self.get_ip()
-        if isinstance(command, str):
-            command = shlex.split(command)
-        output = subprocess.check_output(
-            [
-                "ssh",
-                *Constants.SSH_OPTS,
-                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
-            ]
-            + command
-        )
-        return output.decode("utf8").strip()
+        return ssh_output(Constants.PROXMOX_TEMPLATE_USER, str(self.get_ip()), Constants.SSH_OPTS, command)
 
     def list_ips(self) -> list[IPv4Address | IPv6Address]:
         self.wait_for_agent_online()
@@ -376,6 +413,18 @@ def get_vm_by_name(name: str) -> VM:
     raise KeyError(f"VM with name '{name}' not found")
 
 
+def get_machine_by_name(name: str) -> Machine:
+    if '.' in name:
+        try:
+            import socket
+            return NetMachine(ip=socket.gethostbyname(name))
+        except socket.gaierror:
+            return get_vm_by_name(name)
+    else:
+        return get_vm_by_name(name)
+    
+
+
 def get_vm_by_vmid(vmid: int) -> VM:
     for vm in current_vms():
         if vm.vmid == vmid:
@@ -383,11 +432,11 @@ def get_vm_by_vmid(vmid: int) -> VM:
     raise KeyError(f"VM with vmid '{vmid}' not found")
 
 
-def clone_fedora36(name: str, vmid: int | None = None) -> VM:
-    logger.debug("new Fedora36 clone creation running")
+def clone_fedora(name: str, vmid: int | None = None) -> VM:
+    logger.debug("new Fedora clone creation running")
 
     host = min(hosts().values(), key=lambda h: h.cpu_utilization())
-    logger.debug(f"new Fedora36 clone, will be using host '{host.name}'")
+    logger.debug(f"new Fedora clone, will be using host '{host.name}'")
 
     # clone
     if not vmid:
@@ -401,7 +450,7 @@ def clone_fedora36(name: str, vmid: int | None = None) -> VM:
     # start
     vm = get_vm_by_vmid(vmid)
     vm.start()
-    logger.debug("new Fedora36 clone creation completed")
+    logger.debug("new Fedora clone creation completed")
 
     return vm
 
@@ -459,11 +508,12 @@ def list_vms():
 @cli.command("ssh")
 @click.option("-i", "--vmid", is_flag=True, required=False, help="use VMID instead of human-readable name")
 @click.argument("name", type=str, nargs=1)
-def ssh(vmid, name):
+@click.argument("cmd", type=str, nargs=-1)
+def ssh(vmid, name, cmd):
     if vmid:
-        get_vm_by_vmid(int(name)).interactive_ssh()
+        get_vm_by_vmid(int(name)).interactive_ssh(cmd)
     else:
-        get_vm_by_name(name).interactive_ssh()
+        get_vm_by_name(name).interactive_ssh(cmd)
 
 
 @cli.command("provision-node")
@@ -488,40 +538,65 @@ def provision_node_impl(
 ):
     vm = None
     try:
-        vm = clone_fedora36(name, vmid=vmid)
-        try:
-            vm.wait_for_systemd()
-
-            vm.upload_file(Path("install-scripts/fedora36-general-init.sh"), "/tmp/init.sh")
-            ret = vm.run_ssh_command_blocking(f"bash /tmp/init.sh {name}")
-            if ret != 0:
-                raise RuntimeError(f"init failed with exit code {ret}")
-            
-            ret = vm.run_ssh_command_blocking("sudo reboot")
-            assert ret != 0
-            sleep(1)
-            vm.wait_for_systemd()
-
-            # copy ovn-kubernetes repository to the user's home and install the binaries
-            vm.rsync_files("ovn-kubernetes", "", as_root=False)
-            ret = vm.run_ssh_command_blocking("sudo make -C ovn-kubernetes/go-controller install")
-            if ret != 0:
-                raise RuntimeError(f"ovn prep failed with exit code {ret}")
-
-            if post_init_script:
-                vm.upload_file(Path(post_init_script), "/tmp/post-init-script")
-                vm.run_ssh_command_blocking("sudo chmod +x /tmp/post-init-script && /tmp/post-init-script")
-
-            if interactive:
-                vm.interactive_ssh()
-
-        except KeyboardInterrupt:
-            logger.info("received Ctrl+C, aborting...")
-            pass
+        vm = clone_fedora(name, vmid=vmid)
+        install_node_impl(post_init_script, interactive, name)
     finally:
         if vm and rm:
             logger.warning("Destroying the VM...")
             vm.destroy()
+
+
+@cli.command("install-node")
+@click.option(
+    "--post-init-script",
+    required=False,
+    type=click.Path(exists=True, readable=True),
+    is_flag=False,
+    default=None,
+    nargs=1,
+    help="script to run after setup",
+)
+@click.option("-i", "--interactive", required=False, is_flag=True, help="run interactive session after setup")
+@click.argument("name", required=True, nargs=1, type=str)
+def install_node(post_init_script: Optional[str], interactive: bool, name: str):
+    install_node_impl(post_init_script, interactive, name)
+
+
+def install_node_impl(post_init_script: Optional[str], interactive: bool, name: str):
+    try:
+        vm = get_machine_by_name(name)
+        vm.wait_for_systemd()
+
+        # if it's not there, we can't push our script there
+        vm.run_ssh_command_blocking("sudo dnf install -y rsync")
+
+        vm.upload_files(Path("install-scripts/fedora36-general-init.sh"), "/tmp/init.sh")
+        ret = vm.run_ssh_command_blocking(f"bash /tmp/init.sh {name}")
+        if ret not in (0, 255):
+            raise RuntimeError(f"init failed with exit code {ret}")
+        
+        # the machine will reboot itself shortly
+        # ret = vm.run_ssh_command_blocking("sudo reboot")
+        # assert ret != 0  # reboot does not end well :D, this is pointless
+        sleep(5)
+        vm.wait_for_systemd()
+
+        # copy ovn-kubernetes repository to the user's home and install the binaries
+        # vm.upload_files("../ovn-kubernetes", "", as_root=False)
+        # ret = vm.run_ssh_command_blocking("sudo make -C ovn-kubernetes/go-controller install")
+        # if ret != 0:
+        #    raise RuntimeError(f"ovn prep failed with exit code {ret}")
+
+        if post_init_script:
+            vm.upload_files(Path(post_init_script), "/tmp/post-init-script")
+            vm.run_ssh_command_blocking("sudo chmod +x /tmp/post-init-script && /tmp/post-init-script")
+
+        if interactive:
+            vm.interactive_ssh()
+
+    except KeyboardInterrupt:
+        logger.info("received Ctrl+C, aborting...")
+        pass
 
 
 @cli.command("provision")
@@ -570,6 +645,41 @@ def provision(num_nodes: int):
             join_command + " --cri-socket=unix:///var/run/cri-dockerd.sock"
         )
 
+@cli.command("configure-nodes")
+@click.argument("machine_names", required=True, nargs=-1, type=str)
+def configure_nodes(machine_names: list[str]):
+    threads: list[Thread] = []
+
+    # setup master node
+    t = Thread(
+        target=install_node_impl,
+        args=("install-scripts/ovn-kubernetes-master.sh", False, machine_names[0]),
+    )
+    threads.append(t)
+    t.start()
+
+    # setup workers
+    for name in machine_names[1:]:
+        t = Thread(target=install_node_impl, args=(None, False, name))
+        threads.append(t)
+        t.start()
+
+    # wait for all the threads
+    for t in threads:
+        t.join()
+    logger.info("all nodes initialized")
+
+    # let the workers join the cluster
+    for worker in machine_names[1:]:
+        logger.info("node %s is joining the cluster", worker)
+        join_command = get_machine_by_name(machine_names[0]).run_ssh_command_get_output(
+            "sudo kubeadm token create --print-join-command"
+        )
+        logger.debug(join_command)
+        get_machine_by_name(worker).run_ssh_command_blocking(
+            join_command + " --cri-socket=unix:///var/run/cri-dockerd.sock"
+        )
+
 
 @cli.command()
 @click.argument("vm_name", type=str, nargs=1)
@@ -585,7 +695,7 @@ def upload(vm_name: str, source: str, dest: str):
 @click.argument("dest", type=click.Path(exists=False), nargs=1)
 def upload_everywhere(source: str, dest: str):
     for vm in current_vms():
-        vm.rsync_files(Path(source), dest)
+        vm.upload_files(Path(source), dest)
 
 
 @cli.command()
@@ -648,9 +758,12 @@ def pod_ip(pod_name: str):
 
 @pod.command("ssh")
 @click.argument("pod", type=str, nargs=1)
-def pod_shell(pod: str):
+@click.argument("cmd", type=str, nargs=-1)
+def pod_shell(pod: str, cmd: list[str]):
     vm = get_vm_by_name(node_hostname(1))
-    vm.interactive_ssh(["kubectl", "exec", "-ti", pod, "--", "bash"])
+    if len(cmd) == 0:
+        cmd = ["bash"]
+    vm.interactive_ssh(["kubectl", "exec", "-ti", pod, "--"] + list(cmd))
 
 
 @pod.command("upload")
@@ -659,7 +772,7 @@ def pod_shell(pod: str):
 @click.argument("dest", type=click.Path(exists=False), nargs=1)
 def pod_upload(pod: str, source: str, dest: str):
     vm = get_vm_by_name(node_hostname(1))
-    vm.rsync_files(source, "/.upload")
+    vm.upload_files(source, "/.upload")
     vm.run_ssh_command_blocking(f"kubectl cp /.upload default/{pod}:{dest}; sudo rm -fr /.upload")
     if Path(source).stat().st_mode & 0o111 > 0:
         vm.run_ssh_command_blocking(f"kubectl exec -ti arch -- chmod +x {dest}")

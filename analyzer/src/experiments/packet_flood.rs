@@ -1,4 +1,4 @@
-use std::{thread::sleep, time::Duration};
+use std::{thread::sleep, time::{Duration}, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
 use anyhow::bail;
 use clap::{ArgGroup, Parser};
@@ -27,37 +27,16 @@ pub struct PacketFloodArgs {
     /// For how long is a rule expected to stay in the table before being evicted.
     #[arg(long, default_value_t = 10_000_000_000)]
     eviction_ns: u64,
+
+    /// how long to run for in seconds
+    #[arg(long)]
+    runtime_sec: Option<u64>,
 }
 
 pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
-    let interval_ns: u64 = if let Some(cnt) = args.count {
-        info!(
-            "Targeting flow table with {} flow rules, assuming {:?} rule timeout.",
-            cnt,
-            Duration::from_nanos(args.eviction_ns)
-        );
-        args.eviction_ns / cnt
-    } else if let Some(int) = args.interval_ns {
-        info!(
-            "Sending a unique packet every {:?}",
-            Duration::from_nanos(int)
-        );
-        int
-    } else if let Some(freq) = args.freq {
-        info!(
-            "Sending {} unique packets per second (uniformly spaced)",
-            freq
-        );
-        1_000_000_000 / freq
-    } else {
-        bail!("unexpected combination of arguments");
-    };
-
+    let interval_ns = calculate_sending_interval_ns(&args)?;
     let mut sent = 0;
-    let start_time = clock_ns()?;
     let mut raw_socket = RawSocket::new();
-    const SLEEP_THRESHOLD: Duration = Duration::from_micros(60);
-
     info!(
         "  => new rule every {:?} => expected {} rules in the flow table after {:?}",
         Duration::from_nanos(interval_ns),
@@ -66,21 +45,66 @@ pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
     );
     info!("Flooding, stop with Ctrl+C");
 
-    loop {
+    // when we are just about ready to start, initialize key timestamps
+    let start_time = clock_ns()?;
+    let end_time = if let Some(dur) = args.runtime_sec {
+        start_time + dur*1_000_000_000
+    } else {
+        u64::MAX
+    };
+
+    let stop = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&stop)).unwrap();
+    while !stop.load(Ordering::Relaxed) {
         // send as many packets as should have been sent by now
-        let mut now = clock_ns()?;
+        let now = clock_ns()?;
         while sent * interval_ns + start_time < now {
             raw_socket.send_ethernet_pkt_from_unique_mac()?;
             sent += 1;
-            let new_now = clock_ns()?;
-            now = new_now;
         }
 
+        // sleeping shorter time durations than about 60us does not make sense
+        // https://stackoverflow.com/questions/4986818/how-to-sleep-for-a-few-microseconds/71757858#71757858
+        const SLEEP_THRESHOLD: Duration = Duration::from_micros(60);
         let dur = Duration::from_nanos((sent * interval_ns + start_time) - now);
         if dur > SLEEP_THRESHOLD {
             sleep(dur);
         } else {
             // busy wait
         }
+
+        // termination condition
+        if now > end_time {
+            break;
+        }
+    }
+
+    info!("Sent {} packets", sent);
+
+    Ok(())
+}
+
+fn calculate_sending_interval_ns(args: &PacketFloodArgs) -> anyhow::Result<u64> {
+    if let Some(cnt) = args.count {
+        info!(
+            "Targeting flow table with {} flow rules, assuming {:?} rule timeout.",
+            cnt,
+            Duration::from_nanos(args.eviction_ns)
+        );
+        Ok(args.eviction_ns / cnt)
+    } else if let Some(int) = args.interval_ns {
+        info!(
+            "Sending a unique packet every {:?}",
+            Duration::from_nanos(int)
+        );
+        Ok(int)
+    } else if let Some(freq) = args.freq {
+        info!(
+            "Sending {} unique packets per second (uniformly spaced)",
+            freq
+        );
+        Ok(1_000_000_000 / freq)
+    } else {
+        bail!("unexpected combination of arguments");
     }
 }

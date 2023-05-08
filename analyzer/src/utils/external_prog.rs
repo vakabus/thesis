@@ -11,9 +11,10 @@ use std::{
 use memfd::{Memfd, MemfdOptions};
 use subprocess::{unix::PopenExt, Popen};
 
+
 pub struct ExternalProg {
     popen: Popen,
-    _mfd: Memfd, // just to keep a reference to it the whole time the program is running
+    _mfd: Option<Memfd>, // just to keep a reference to it the whole time the program is running
 }
 
 impl ExternalProg {
@@ -31,26 +32,30 @@ impl ExternalProg {
         self.stop()
     }
 
-    pub fn stop(mut self) -> anyhow::Result<()> {
+    pub fn stop(self) -> anyhow::Result<()> {
+        self.stop_with_timeout(Duration::from_millis(2000))
+    }
+
+    pub fn stop_with_timeout(mut self, timeout: Duration) -> anyhow::Result<()> {
         let status = if let Some(st) = self.popen.exit_status() {
             st
         } else {
             _ = self.popen.send_signal(libc::SIGINT);
             self.popen
-                .wait_timeout(Duration::from_millis(500))
+                .wait_timeout(timeout)
                 .transpose()
                 .unwrap_or_else(|| {
                     _ = self.popen.kill();
                     self.popen.wait()
                 })
-                .expect("failed to stop the python process")
+                .expect("failed to stop the external process")
         };
 
         if status.success() {
             Ok(())
         } else {
             Err(anyhow::format_err!(
-                "python process exited with exit code {:?}",
+                "process exited with exit code {:?}",
                 status
             ))
         }
@@ -69,7 +74,19 @@ pub fn run_external_program_async(script: &[u8], args: &[&str]) -> anyhow::Resul
 
     Ok(ExternalProg {
         popen: exec,
-        _mfd: mfd,
+        _mfd: Some(mfd),
+    })
+}
+
+pub fn run_cmd_async(cmd: &[&str]) -> anyhow::Result<ExternalProg> {
+    let exec = subprocess::Exec::cmd(cmd[0])
+        .args(&cmd[1..])
+        .detached()
+        .popen()?;
+
+    Ok(ExternalProg {
+        popen: exec,
+        _mfd: None
     })
 }
 

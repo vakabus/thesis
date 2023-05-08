@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use super::block_signals;
+use super::{block_signals};
 
 pub trait MultiMonitor {
     type Stats: Serialize + Sized;

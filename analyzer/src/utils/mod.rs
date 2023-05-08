@@ -1,9 +1,11 @@
+use std::{time::{Duration, Instant}, thread::sleep};
+
 use anyhow::bail;
 use nix::sys::{
     signal::{sigprocmask, SigmaskHow},
     signalfd::SigSet,
 };
-use signal_hook::iterator::{exfiltrator::SignalOnly, SignalsInfo};
+use signal_hook::{iterator::{exfiltrator::SignalOnly, SignalsInfo}, low_level::signal_name};
 
 pub mod collector;
 pub mod external_prog;
@@ -40,6 +42,29 @@ pub fn wait_for_signal(signal: i32) -> anyhow::Result<()> {
     }
 
     bail!("ehm, this should never happen");
+}
+
+pub fn wait_for_signal_or_timeout(expect: i32, timeout: Duration) -> anyhow::Result<()> {
+    let mut signals = SignalsInfo::<SignalOnly>::new(vec![expect])?;
+    debug!("Waiting for signal {}", signal_name(expect).unwrap());
+    
+    let start = Instant::now();
+    while start + timeout > Instant::now() {
+        // check signals
+        for sig in signals.pending() {
+            if sig == expect {
+                return Ok(());
+            } else {
+                bail!("received signal {} when expecting {}", signal_name(sig).unwrap(), signal_name(expect).unwrap());
+            };
+        }
+
+        // wait
+        let wait = Duration::min(Instant::now() - start + timeout, Duration::from_millis(250));
+        sleep(wait);
+    }
+    // timeout
+    Ok(())
 }
 
 pub fn with_blocked_signals<R: Sized, T: FnOnce() -> R>(func: T) -> R {

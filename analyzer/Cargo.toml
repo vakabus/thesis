@@ -25,4 +25,5 @@ serde_json = "1.0.91"
 signal-hook = "0.3.14"
 simple_logger = "4.0.0"
 subprocess = "0.2.9"
+sysinfo = { version = "0.28.4", features = ["debug"] }
 tui = "0.19.0"

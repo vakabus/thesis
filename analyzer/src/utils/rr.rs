@@ -1,6 +1,7 @@
-use std::{net::{UdpSocket, Ipv4Addr, TcpStream}, io::{Write, Read}, time::Duration, sync::{mpsc::{channel, Receiver, Sender}, atomic::{AtomicBool, Ordering}, Arc}, thread::{JoinHandle, self}, collections::BTreeSet};
+use std::{net::{UdpSocket, TcpStream}, io::{Write, Read}, time::Duration, sync::{mpsc::{channel, Receiver, Sender}, atomic::{AtomicBool, Ordering}, Arc}, thread::{JoinHandle, self}, collections::BTreeSet};
 
-use anyhow::{bail, Result};
+use anyhow::{Result};
+use nix::errno:: Errno;
 use serde::Serialize;
 
 use super::{
@@ -41,7 +42,19 @@ impl UdpRRMonitor {
                     }
                 },
                 Err(e) => {
-                    warn!("packet recv error: {}", e);
+                    if let Some(errno) = e.raw_os_error() {
+                        let errno = Errno::from_i32(errno);
+                        match errno {
+                            Errno::EAGAIN => {
+                                /* nothing interesting, this is valid */
+                            },
+                            _ => {
+                                warn!("packet recv OS error: {}", errno);
+                            }
+                        }
+                    } else {
+                        warn!("packet recv error: {}", e);
+                    }
                 }
             }
         }

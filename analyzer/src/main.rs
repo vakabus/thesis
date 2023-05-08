@@ -1,4 +1,5 @@
 #![feature(is_some_and)]
+#![feature(result_option_inspect)]
 
 #[macro_use]
 extern crate log;
@@ -50,6 +51,9 @@ enum Experiments {
 
     /// Innocent victim
     Victim(experiments::victim::VictimArgs),
+
+    /// Reload ovn-kubernetes on node
+    ReloadOvn(experiments::reload_ovn::ReloadOvnArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -80,6 +84,7 @@ fn main() -> anyhow::Result<()> {
         Experiments::PacketFlood(ev) => experiments::packet_flood::run(ev)?,
         Experiments::Reflector(ev) => experiments::pkt_reflector::run(ev)?,
         Experiments::Victim(ev) => experiments::victim::run(ev, handler)?,
+        Experiments::ReloadOvn(ev) => experiments::reload_ovn::run_experiment(ev),
     };
 
     Ok(())

@@ -176,6 +176,16 @@ def parse_dpctl_dump(filename: str) -> pl.DataFrame:
 def parse_vswitchd(filename: str) -> pl.DataFrame:
     return pl.read_csv(filename)
 
+def parse_usdt(filename: str) -> Tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    df = pl.read_csv(filename, separator=";", dtypes={"ts": pl.Int64, "flow_limit": pl.Int64, "duration_ns": pl.Int64, "flows": pl.Int64, "tid": pl.Int64})
+    flow_limits = df.lazy().filter(pl.col("probe") == "new_flow_limit").drop("probe").collect()
+    barriers = df.lazy().filter(pl.col("probe") != "new_flow_limit").filter(pl.col("probe").str.starts_with("ovs_").is_not()).filter(pl.col("duration_ns") != pl.col("ts")).drop("flow_limit").drop("flows").with_columns((pl.col("duration_ns").cast(pl.Float64) / 1_000_000_000).alias("duration_sec")).collect()
+    kernel = df.lazy().filter(pl.col("probe").str.starts_with("ovs_")).drop("flow_limit").drop("flows").with_columns((pl.col("duration_ns").cast(pl.Float64) / 1_000_000_000).alias("duration_sec")).collect()
+    return flow_limits, barriers, kernel
+
+def renumber(col: str, df: pl.DataFrame) -> pl.DataFrame:
+    ids = df.lazy().select(col).unique().with_row_count(name=f"{col}_num")
+    return df.lazy().join(ids, on=col, how="inner").collect()
 
 def remove_offset_and_scale(col: str, scale: float|int, *dfs: pl.DataFrame) -> list[pl.DataFrame]:
     low = float('inf')

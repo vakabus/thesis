@@ -1,3 +1,9 @@
-[submodule "cluster_tools/ovn-kubernetes"]
-	path = cluster_tools/ovn-kubernetes
+[submodule "ovn"]
+	path = ovn
+	url = https://github.com/ovn-org/ovn.git
+[submodule "ovs"]
+	path = ovs
+	url = git@github.com:vakabus/ovs.git
+[submodule "ovn-kubernetes"]
+	path = ovn-kubernetes
 	url = https://github.com/ovn-org/ovn-kubernetes.git

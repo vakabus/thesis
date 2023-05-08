@@ -38,7 +38,7 @@ pub fn ping(addr: IpAddr) -> anyhow::Result<Duration> {
         .unwrap();
 
     if !child.success() {
-        Err(anyhow!("ping command exited with non-zero exit code"))
+        Err(anyhow!("ping command exited with non-zero exit code {:?}", child.exit_status))
     } else {
         let out = child.stdout_str();
         let res = out.lines().nth(1).unwrap();

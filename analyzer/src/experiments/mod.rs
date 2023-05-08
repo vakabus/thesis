@@ -2,6 +2,7 @@ pub mod eviction_timeout;
 pub mod randomized_eviction_timeout;
 
 pub mod install_dependencies;
+pub mod reload_ovn;
 
 pub mod log_flow_ops;
 pub mod node_logger;
