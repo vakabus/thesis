@@ -24,7 +24,7 @@ jobs:
         with:
           name: Thesis
           path: |
-            *.pdf
+            text/*.pdf
 
   verify:
     name: Verify PDF/A
