@@ -1,16 +1,40 @@
 
 \chapwithtoc{Introduction}
 
-Introduction should answer the following questions, ideally in this order:
-\begin{enumerate}
-\item What is the nature of the problem the thesis is addressing?
-\item What is the common approach for solving that problem now?
-\item How this thesis approaches the problem?
-\item What are the results? Did something improve?
-\item What can the reader expect in the individual chapters of the thesis?
-\end{enumerate}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Introduction should answer the following questions, ideally in this order:
+% \begin{enumerate}
+% \item What is the nature of the problem the thesis is addressing?
+% \item What is the common approach for solving that problem now?
+% \item How this thesis approaches the problem?
+% \item What are the results? Did something improve?
+% \item What can the reader expect in the individual chapters of the thesis?
+% \end{enumerate}
+% 
+% Expected length of the introduction is between 1--4 pages. Longer introductions may require sub-sectioning with appropriate headings --- use \texttt{\textbackslash{}section*} to avoid numbering (with section names like `Motivation' and `Related work'), but try to avoid lengthy discussion of anything specific. Any ``real science'' (definitions, theorems, methods, data) should go into other chapters.
+% \todo{You may notice that this paragraph briefly shows different ``types'' of `quotes' in TeX, and the usage difference between a hyphen (-), en-dash (--) and em-dash (---).}
+% 
+% It is very advisable to skim through a book about scientific English writing before starting the thesis. I can recommend `\citetitle{glasman2010science}' by \citet{glasman2010science}.
+% 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Expected length of the introduction is between 1--4 pages. Longer introductions may require sub-sectioning with appropriate headings --- use \texttt{\textbackslash{}section*} to avoid numbering (with section names like `Motivation' and `Related work'), but try to avoid lengthy discussion of anything specific. Any ``real science'' (definitions, theorems, methods, data) should go into other chapters.
-\todo{You may notice that this paragraph briefly shows different ``types'' of `quotes' in TeX, and the usage difference between a hyphen (-), en-dash (--) and em-dash (---).}
 
-It is very advisable to skim through a book about scientific English writing before starting the thesis. I can recommend `\citetitle{glasman2010science}' by \citet{glasman2010science}.
+% adapted from the thesis assignment
+
+Modern containerized cloud computing systems have complex requirements for their networking backends. Demand for features like seamless cross-data-center networking, multi-tenancy and security policies necessitated use of the Software Defined Networking (SDN) concept and, by the nature of containerized systems, extensive use of virtualized networks.
+
+The current shift to microservices and the resulting increase of endpoints and need of rapid reconfiguration put emphasis on the SDN control plane performance and scalability.
+
+A commonly deployed solution is Kubernetes for container orchestration and Open vSwitch for the virtualized SDN, used either directly or indirectly. However, it remains a question how well these solutions are adapted to the networking needs of microservices.
+
+This work explores the performance and scalability characteristics of Open vSwitch (OVS) based Kubernetes clusters and is focused on investigating performance in pathological scenarios. While our experimental Kubernetes clusters were configured with \xxx{OVN-Kubernetes} networking plugin, our findings should be transferrable to any other SDN installation using Open vSwitch.
+
+We first explored methods for stressing the OVS's control plane and discovered at least one problematic type of packets. We measured OVS's behaviour under stress and learnt that in certain configurations, an attacker can use the discovered inefficiencies for a denial of service attack. We then tried to find all possible related attacks and their evaluated options of preventing them. \todo{Can we attack multiple nodes from a single cluster?}
+
+This thesis is divided into several chapters. In the first chapter, we provide descriptions of all relevant technologies, how they interact and how they work internally. The second chapter describes our experimental clusters and the limitations of our measurements. The third chapter describes our experiments and their findings. In the fourth chapter evaluates our findings and the last, fifth chapter suggests improvements. \todo{fix chapter descriptions after finishing them}
+
+
+
+% The rest of the assignment text:
+%
+% The goal of this work is exploring the performance and scalability of common Kubernetes and Open vSwitch configurations with the focus on pathological cases. It should explore how network performance characteristics are influenced by external factors, such as pathologic traffic patterns or pathologic microservices networking behavior. It should seek performance and scalability bottlenecks, evaluate whether and how they are relevant to the cluster security and propose optimization.

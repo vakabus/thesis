@@ -1,67 +1,235 @@
-\chapter{Important first chapter}
+\chapter{Theoretical background}
 \label{chap:refs}
 
-First chapter usually builds the theoretical background necessary for readers to understand the rest of the thesis. You should summarize and reference a lot of existing literature and research.
+\section{Glossary}
 
-You should use the standard \emph{citations}\todo{Use \textbackslash{}emph command like this, to highlight the first occurrence of an important word or term. Reader will notice it, and hopefully remember the importance.}.
+\paragraph{SDN} Software-defined network. Additional details can be found in \xxx{\cref{TODO}}.
 
-\begin{description}
-\item[Obtaining bibTeX citation] Go to Google Scholar\footnote{\url{https://scholar.google.com}}\todo{This footnote is an acceptable way to `cite' webpages or URLs. Documents without proper titles, authors and publishers generally do not form citations. For this reason, avoid citations of wikipedia pages.}, find the relevant literature, click the tiny double-quote button below the link, and copy the bibTeX entry.
-\item[Saving the citation] Insert the bibTeX entry to the file \texttt{refs.bib}. On the first line of the entry you should see the short reference name --- from Scholar, it usually looks like \texttt{author2015title} --- you will use that to refer to the citation.
-\item[Using the citation] Use the \verb|\cite| command to typeset the citation number correctly in the text; a long citation description will be automatically added to the bibliography at the end of the thesis. Always use a non-breakable space before the citing parenthesis to avoid unacceptable line breaks:
-\begin{Verbatim}
-Trees utilize gravity to invade ye
-noble sires~\cite{newton1666apple}.
-\end{Verbatim}
-\item[Why should I bother with citations at all?] For two main reasons:
+\paragraph{OVS} Open vSwitch\footnote{\url{https://www.openvswitch.org/}}
+
+\paragraph{OVN} Open Virtual Network\footnote{\url{https://docs.ovn.org/en/latest/}}
+
+\paragraph{CNI} Container network interface\footnote{\url{https://github.com/containernetworking/cni/blob/dc0779e8cec8bfe39bc0d7a038250e233e5214eb/SPEC.md}}. Specification for writing plugins configuring network interfaces in Linux container, best known by usage in Kubernetes.
+
+\paragraph{OVN-Kubernetes} CNI plugin using OVN.
+
+\paragraph{Forwarding table} Network switches use forwarding tables to decide where to forward a received packet. In Ethernet, the forwarding tables consist of MAC address to network port mapping. SDNs generalized forwarding tables so that they can match packets in any way deemed useful, most commonly on any header values from the second, third, and fourth layers of the OSI model.\todo{quote \url{https://www.iso.org/standard/20269.html}}
+
+\paragraph{OpenFlow} Network configuration protocol used between an SDN controller and SDN switches. OpenFlow allows remote configuration of forwarding tables in network switches.
+
+
+\section{Software-defined networking (SDN)}
+\todo{make a proper quotation for the schema in \cref{fig:sdn-schema} \url{https://opennetworking.org/wp-content/uploads/2013/02/TR_SDN_ARCH_1.0_06062014.pdf}}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.6\linewidth]{img/sdn_basic_schema.pdf}
+    \caption{A schema of basic SDN components.}
+    \label{fig:sdn-schema}
+\end{figure}
+
+\emph{Software-defined networking} is a loosely defined concept of separating the networking data plane (infrastructure layer) and the control plane (control layer) into separate components. In traditional networking architectures, each network device makes forwarding and/or routing decisions fully autonomously. SDNs separate the decision-making and data processing into distinct layers (see \cref{fig:sdn-schema}) and define two main interfaces. \emph{SDN applications} provide the \emph{SDN controller} with networking requirements using the \emph{northbound interface}. The controller then configures the actual network equipment using the \emph{southbound interface}.
+
+\emph{OpenFlow}\footnote{\url{https://opennetworking.org/sdn-resources/openflow-switch-specification/}} is a de-facto standard protocol for the southbound interface. \emph{Container network interface (CNI)} is a specification for the northbound interface in Kubernetes and other container orchestrators.
+
+\section{OpenFlow}
+
+\todo{add a proper example to the table}
+
+\emph{OpenFlow} is a protocol for configuring packet forwarders (generalized switches). The forwarding tables (see \cref{tab:openflow-forwarding-table}) in the network switches are filled with rules provided by the OpenFlow controller. The flow rules consist of two parts:
+
 \begin{itemize}
-\item You do not have to explain everything in the thesis; instead you send the reader to refer to details in some other literature. Use citations to simplify the detailed explanations.
-\item If you describe something that already exists without using a citation, the reviewer may think that you \emph{claim} to have invented it. Expectably, they will demand academic correctness, and, from your perspective, being accused of plagiarism is not a good starting point for a successful defense. Use citations to identify the people who invented the ideas that you build upon.
-\end{itemize}
-\item[How many citations should I use?]
-Cite any non-trivial building block or assumption that you use, if it is published in the literature. You do not have to cite trivia, such as the basic definitions taught in the introductory courses.
-
-The rule of thumb is that you should read, understand and briefly review at least around 4 scientific papers. A thesis that contains less than 3 sound citations will spark doubt in reviewers.
-\end{description}
-
-There are several main commands for inserting citations, used as follows:
-\begin{itemize}
-\item \citet{knuth1979tex} described a great system for typesetting theses.
-\item We are typesetting this thesis with \LaTeX, which is based on \TeX{} and METAFONT~\cite{knuth1979tex}.
-\item \TeX{} was expanded to \LaTeX{} by \citet{lamport1994latex}, hence the name.
-\item Revered are the authors of these systems!~\cite{knuth1979tex,lamport1994latex}
-\end{itemize}
-
-\section{Some extra assorted hints before you start writing English}
-
-\paragraph{Word order}
-Strictly adhere to the English word order rules. The sentences follow a fixed structure with a subject followed by a verb and an object (in this order). Exceptions to this rule must be handled specially, and usually separated by commas.
-
-\paragraph{Sentence structure}
-Do not write long sentences. One sentence should contain exactly one fact. Multiple facts should be grouped in a paragraph to communicate one coherent idea. Both the sentences and paragraphs should include various hints about their relation to the other ideas and paragraps. These are typically materialized as adverbs or short sentence parts that clarify the cause--outcome and target--method--result relationship of the sentences in a paragraph. Such `word glue' helps the readers to correctly draw the lines that hold their mental images of your thesis together, and ideally see the big picture of what you were trying to convey right from the first read.
-
-Paragraphs are grouped in labeled sections for a sole purpose of making the navigation in the thesis easier. Do not use the headings as `names for paragraphs' --- the text should make perfect sense even if all headings are removed. If a section of your text contains one paragraph per heading, you might have wanted to write an explicit list instead.
-
-Mind the rules for placing commas:
-\begin{itemize}
-\item Do not use the comma before subordinate clauses that begin with `that' (like this one). English does not use subordinate clauses as often as Slavic languages because the lack of a suitable word inflection method makes them hard to understand. In scientific English, try to avoid them as much as possible. Ask doubtfully whether each `which' and `when' is necessary --- most of these helper conjunctions can be removed by converting the clause to non-subordinate.
-
-As an usual example, \xxx{\textit{`The sentence, which I wrote, seemed ugly.'}} is perfectly bad; slightly improved by \xxx{\textit{`The sentence that I wrote seemed ugly.'}}, which can be easily reduced to \textit{`The sentence I wrote seemed ugly.'}. A final version with added storytelling value could say \textit{`I wrote a sentence but it seemed ugly.'}
-\item Use the \emph{Oxford comma} before `and' and `or' at the end of a longer, comma-separated list of items. Certainly use it to disambiguate any possible mixtures of conjunctions: \textit{`The car is available in red, red and green, and green versions.'} Remember that English `or' is typically understood more like `either this or that, but not both,' and the use of `and` is much more appropriate in cases such as possibility overviews and example listings (like in this sentence).
-\item Consider placing extra commas around any parts of the sentence that break the usual word order, especially if they are longer than a single word.
+    \item \emph{Packet matching criteria} which can include value masks for not only Ethernet header values, but also IP, transport layer protocols (TCP, UDP, ...), and more depending on the version of the OpenFlow protocol. 
+    \item The action instructing the switch on what to do with the matching packets. Possible actions include dropping packets, modifying header fields, forwarding to physical or virtual ports, sending to the controller, and more.
 \end{itemize}
 
-\paragraph{Nouns}
-Every noun needs a determiner (`a', `the', `my', `some', \dots); the exceptions to this rule, such as non-adjectivized names and indeterminate plural, are relatively scarce. Without a determiner, a noun can be easily mistaken for something completely different, such as an adjective or a verb.
+In addition to the externally configured flow rules, the forwarding tables also contain statistics updated every time the flow rule is used. The OpenFlow controller can then query switches for these statistics.
 
-Name all things with appropriate nouns to help both the reader and yourself, and do not hesitate to invent good names and labels for anything that you will refer to more than once. Proper naming will save you a lot of writing effort because you will not have to repeat descriptions such as \xxx{\textit{`the third output of the second benchmarked method of the improved set,'}} instead you may introduce a labeling that will allow you to say just something like \textit{`output M2\textsuperscript{+}-3'}. At the same time, this will reduce the risk that the reader will confuse the object with another one --- for illustration, the long version of the previous example might very easily confuse with the second output of the third method. The same also applies to methods descriptions, algorithms, programs, testing datasets, theorems, use-cases, challenges and other things. As an example, \xxx{\textit{`the algorithm that organizes the potatoes into appropriate buckets'}} shortens nicely as \textit{`the potato bucketer'} and may be labeled as a procedure \textsc{BucketPotatoes()}, and \xxx{\textit{`the issue where the robot crashes into a wall and takes significant time to return to the previous task'}} may be called just \textit{`the crash-recovery lag'}.
+\begin{table}[]
+    \begin{center}
+        \caption{Schema of an OpenFlow forwarding table}
+        \label{tab:openflow-forwarding-table}
+        \begin{tabular}{c|c|c}
+            \textbf{Matching criteria} & \textbf{Action} & \textbf{Statistics} \\
+            \hline
+            \xxx{add example} & 1110.1 & a\\ % <--
+            2 & 10.1 & b\\ % <--
+            3 & 23.113231 & c\\ % <--
+        \end{tabular}
+    \end{center}
+\end{table}
 
-\paragraph{Verbs}
-Although English can express a whopping 65 base verb tenses and their variants, scientific literature often suppresses this complexity and uses only several basic tenses where the meaning is clearly defined. Typically, you state facts in present simple (\textit{`Theorem 1 proves that Gadget B works as intended.'}), talk about previous work and experiments done in past simple (\textit{`We constructed Gadget B from Gizmo C, which was previously prepared by Tinkerer et al.'}), and identify achieved results in present perfect (\textit{`We have constructed Technology T.'}). Avoid using future tense, except for sections that explicitly describe future work --- as a typical mistake, if you state that the thesis \emph{will} describe something in later chapters, you imply that the description is not present there yet.
 
-Do not write sentences in passive voice, unless you explicitly need to highlight that something has passively subjected itself to an action. Active voice is more preferable in the theses because it clearly highlights the actors and their contributions --- typically, \textit{`you did it'} instead of \textit{`it was done'} by a mysterious entity, which the reviewers rarely envision as yourself. Writing in active voice additionally benefits the explanation of complex processes: There, the word order forces you to identify the acting subject as the first word in the sentence, which further disambiguates how the individual process parts are triggered and ordered.
+\section{Open vSwitch}
 
-Try to avoid overusing gerunds (verbs that end with `-ing'). It is convenient to write shorter sentences by using gerunds as adjectives, but these are typically quite hard to understand because the readers may easily confuse the intended adjectives with verbs. If your sentence contains two gerunds close to each other, it may need a rewrite.
+\emph{Open vSwitch} (OVS) is a multilayer virtual switch. OVS runs as a software switch on all major platforms and supports hardware offload for its data processing layers. The supported OpenFlow protocol allows any SDNs to use OVS in its infrastructure layer.
 
-\paragraph{Scientific writing resources}
-Consult the book by \citet{glasman2010science} for more useful details and recommended terminology for writing about the scientific research. Very pragmatically, the book by \citet{sparling1989english} describes many common mistakes that Czech and Slovak (and generally Slavic) writers make when writing English.
+The internal architecture of OVS mirrors the SDN architecture (see \cref{fig:ovs-arch-schema}\todo{redraw the image or quote it properly}). \ident{ovs-vswitchd} (or just \ident{vswitchd}) is the OVS's control process. \ident{vswitchd} communicates via the OpenFlow protocol and stores the configured flow rules in a purpose-built Open vSwitch Database (OVSDB). Alternatively, the database can be accessed externally, and OVS can be configured without using the OpenFlow wire protocol.
+
+A \emph{datapath} is the lowest component of OVS physically forwarding packets between configured ports. There are multiple datapath implementations, some of them implemented fully in the \ident{vswitchd} process, some of them using extra kernel modules for improved performance. \ident{vswitchd} translates the OpenFlow flow rules into a more efficient and simplified form. These simplified flow rules are then used by the datapaths to make forwarding decisions.
+
+\begin{table}[h!]
+    \begin{center}
+        \caption{Overview of OVS components}
+        \label{tab:ovs-components}
+        \begin{tabular}{p{0.2\linewidth}|p{0.7\linewidth}}
+            \textbf{Component} & \textbf{Description} \\
+            \hline
+            % FIXME this footnote might be on a wrong page :(
+            \ident{ovsdb}\tablefootnote{\url{https://docs.openvswitch.org/en/latest/ref/ovsdb.7/}} & OVSDB instance storing the OpenFlow flow rules \\
+            \hline
+            \ident{ovs-vswitchd}\tablefootnote{\url{http://www.openvswitch.org/support/dist-docs/ovs-vswitchd.8.html}} & a process managing datapaths and providing OpenFlow configuration interface \\
+            \hline
+            datapath & a logical component in \ident{ovs-vswitchd}, does the actual packet forwarding \\
+        \end{tabular}
+    \end{center}
+\end{table}
+
+
+\section{Open Virtual Network}
+
+\todo{link to documentation \url{https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/13/html/networking_with_open_virtual_network/open_virtual_network_ovn}}
+
+\emph{Open Virtual Network} (OVN) is an SDN combining Open vSwitch with network tunnels (by default GENEVE) for its infrastructure layer. Applications communicate with OVN through the \ident{northdb}, an OVSDB instance storing high-level network configuration in terms of traditional networking concepts. The \ident{ovn-northd} process translates the configuration into logical datapath flows and stores the result in the \ident{southdb} OVSDB instance. The \ident{ovn-controller} then distributes the flows from the \ident{southdb} into individual OVS databases.
+
+\begin{table}[h!]
+    \begin{center}
+        \caption{Overview of OVN components}
+        \label{tab:ovn-components}
+        \begin{tabular}{p{0.23\linewidth}|p{0.47\linewidth}|p{0.2\linewidth}}
+            \textbf{Component} & \textbf{Description} & \textbf{How it runs} \\
+            \hline
+            \ident{northdb} & OVSDB instance storing network configuration in terms of traditional networking concepts & centralized or distributed \\
+            \hline
+            \ident{ovn-northd} & process translating configuration into logical flows & centralized or distributed \\
+            \hline
+            \ident{southdb} & OVSDB instance storing network configuration in terms of logical flows & centralized or distributed\\
+            \hline
+            \ident{ovn-controller} & configures local OVS from the \ident{southdb} & locally on every node\\
+        \end{tabular}
+    \end{center}
+\end{table}
+
+
+\section{OVN-Kubernetes}
+
+\emph{OVN-Kubernetes}\footnote{\url{https://github.com/ovn-org/ovn-kubernetes}} is a Kubernetes CNI plugin using OVN in the background. \todo{Expand with information about internal architecture.}
+
+\section{Open vSwitch Datapath Internals}
+\label{sec:ovs-packet-processing}
+\todo{This whole section is not adapted to the thesis yet. It is just copy-pasted from my website.}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.9\linewidth]{img/ovs_architecture_01.png}
+    \caption{Schema of OVS internal architecture.}
+    \label{fig:ovs-arch-schema}
+\end{figure}
+
+\ident{ovs-vswitchd} processes packets in \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.h}{datapaths}, which is essentially \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L107-L117}{an interface} hiding the implementation details of low-level packet processing. The datapath does not do any decisions by itself, it's the clients of the datapath that tell it what to do by giving it simple rules to follow. In the upstream code, there are two datapath implementations - \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netdev.c}{\ident{netdev}} and \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c}{\ident{netlink}}.
+
+The \ident{netdev} datapath is implemented entirely in user space, and it's multiplatform. All major operating systems are currently supported. As it's userspace only, it's less performant than the \ident{netlink} datapath and we will ignore it for the rest of this article. The \ident{netlink} datapath is Linux-specific. It resides partially in a kernel module and partially in user space. The kernel module does most of the packet processing. The userspace communicates with the kernel over a netlink socket, exchanging commands and packets. Most packets never touch the user space and are processed only in the kernel. We call this the fast-path. The alternative is the slow-path, a path through user space, which is taken every time the fast-path fails.
+
+
+\subsection{Overview of the kernel and user space interactions}
+\label{overview-of-the-kernel-and-user-space-interactions}
+
+The fast-path involves matching incoming packet against a set of flow rules stored in the kernel. The rules contain actions -- instructions describing what to do next with the packet. If any of the flow rules matches, the kernel blindly executes the action. In this case, no buffering is involved, the packets are processed immediately.
+
+The slow-path gets involved when the fast-path fails (no flow rule match) or when the action in the flow rule asks for it. In it, the packet is passed to the user-space via a netlink socket (we call this an upcall). An user-space process receives the packet, processes it according to its configuration and reinjects it back into the kernel. Additionally, a new flow rule can be installed into the kernel to speed up future processing of similar packets. The slow-path buffers packets when they are passed from kernel to user-space.
+
+\subsection{The fast-path}
+\label{the-fast-path}
+
+\subsubsection{The data structures}
+\label{the-data-structures}
+
+The flow table (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow_table.h\#L62}{\ident{struct\ flow\_table}}) is an in-kernel data structure, which stores flows rules (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L221}{\ident{struct\ sw\_flow}}) and allows for fast matching with individual packets. Every flow also contains a list of actions (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L206}{\ident{struct\ sw\_flow\_actions}}).
+
+Every flow has a flow key (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L75}{\ident{struct\ sw\_flow\_key}}) and a bitmask (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L183}{\ident{struct\ sw\_flow\_mask}}). The combination of both of these enables the packet matching. The key is a complex structure with parsed out packet header values. It can be created from any Ethernet frame (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.c\#L886}{\ident{key\_extract}}). The mask then tells us which bits between the extracted packet key and the flow key must match.
+
+
+\subsubsection{The matching algorithm}
+\label{the-matching-algorithm}
+
+When processing a packet, we create the corresponding flow key and look for matching flows in the flow table. The packet can match any number of flows, but we always use the first one we find. The userspace component is made responsible for preventing overlapping conflicting flow rules.
+
+The flow table stores the flow in a hash table, where the key is the masked \ident{sw\_flow\_key}. Therefore, to find a flow for a packet, we must try several masks. The lookup procedure could look like this:
+
+\begin{verbatim}
+    def lookup(flow_table, key):
+        for mask in flow_table.mask_array:
+            masked_key = apply mask to key
+            if masked_key in flow_table.flows:
+                return flow_table.flows[masked_key]
+        return None
+\end{verbatim}
+    
+
+The real implementation (\href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/flow_table.c\#L785}{\ident{ovs\_flow\_tbl\_lookup\_stats}}) is in principle similar, but more optimized:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  The kernel keeps mask usage statistics and the \ident{mask\_array} is
+  kept sorted with the most used masks first
+  (\href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/flow_table.c\#L1107}{\ident{ovs\_flow\_masks\_rebalance}}).
+  This happens
+  \href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/datapath.c\#L2536}{periodically}
+  based on a time interval.
+\item
+  There is already a \ident{sk\_buff}
+  \href{https://elixir.bootlin.com/linux/v6.2.5/source/include/linux/skbuff.h\#L1537}{hash}
+  based on source/destination addresses and ports. The lookup procedure
+  makes use of the hash by having a fixed size
+  (\href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/flow_table.c\#L41}{256})
+  hash table storing references to their masks. The cached masks are
+  then tried first. If there is no match, standard lookup over all masks
+  follows. This helps with burst performance.
+\end{enumerate}
+
+\subsection{The slow-path}
+\label{the-slow-path}
+
+The user space process (\href{https://www.man7.org/linux/man-pages/man8/ovs-vswitchd.8.html}{\ident{ovs-vswitchd}}) communicates with the kernel over netlink socket. When packet leaves the
+fast-path, it is temporarily buffered in a queue (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/datapath.c\#L311}{\ident{ovs\_dp\_upcall}}) when crossing the kernel boundary.
+
+\ident{ovs-vswitchd} reads packets from the kernel in several threads. The datapath interface defines a \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L387-L408}{\ident{recv}} function for receiving a single packet from the kernel. The netlink datapath implements it with the function \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c\#L3132-L3134}{\ident{dpif\_netlink\_recv}}.
+
+Higher up, the \ident{recv} datapath interface function is used in generic \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.c\#L1591-L1611}{\ident{dpif\_recv}} which also provides an useful tracepoint \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.c\#L1618}{\ident{dpif\_recv\_\_recv\_upcall}} for measurements. Even higher up the abstraction stack, the function \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L829-L830}{\ident{recv\_upcalls}} in the file \ident{ofproto-dpif-upcall.c} reads packets in batches, which are then processed by \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L1639-L1641}{\ident{handle\_upcalls}}. The \ident{handle\_upcalls} function essentially transforms the list of packets into a list of operations that should be executed on the datapath. This includes adding new flows to the datapath as well as simply sending packets where they belong.
+
+Parallel with upcall processing, OVS also runs several maintenance tasks. A \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L3312-L3336}{balancing task} makes sure, that when the system is under stress, the most used flow rules are in the kernel. \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L83-L111}{A revalidator task} periodically reads statistics from the kernel and most importantly, removes old unused flows.
+
+% TODO add sources
+%
+% \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+% 
+% \hypertarget{sources}{%
+% \section{Sources}\label{sources}}
+% 
+% \begin{itemize}
+% \tightlist
+% \item
+%   \href{https://docs.openvswitch.org/en/latest/contents/}{Open vSwitch
+%   online documentation}
+% 
+%   \begin{itemize}
+%   \tightlist
+%   \item
+%     \href{https://docs.openvswitch.org/en/latest/topics/datapath/}{Open
+%     vSwitch Datapath Development Guide}
+%   \end{itemize}
+% \item
+%   \href{https://elixir.bootlin.com/linux/v6.2.6/source}{Linux Kernel
+%   source code}
+% \item
+%   \href{https://github.com/openvswitch/ovs/tree/51778134d4c8a84801230b1e5a7d59e180d9e8b5}{Open
+%   vSwitch source code}
+% \item
+%   \href{https://developers.redhat.com/articles/2022/02/07/investigating-cost-open-vswitch-upcalls-linux}{RedHat
+%   Developer Blog: Investigating the cost of Open vSwitch upcalls in
+%   Linux}
+% \item
+%   \href{https://hustcat.github.io/an-introduction-to-ovs-architecture/}{An
+%   introduction to OVS architecture}
+% \end{itemize}

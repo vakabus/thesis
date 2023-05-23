@@ -56,6 +56,12 @@
 % Customization of algorithmic environment (comment style)
 \renewcommand{\algorithmiccomment}[1]{\textcolor{black!25}{\dotfill\sffamily\itshape#1}}
 
+% for code identifiers such as function and variable names
+\newcommand{\ident}[1]{\mbox{\texttt{#1}}}
+
+% for table footnotes
+\usepackage{tablefootnote}
+
 % Uncomment for table captions on top. This is sometimes recommended by the
 % style guide, and even required for some publication types.
 %\floatsetup[table]{capposition=top}
