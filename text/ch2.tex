@@ -76,14 +76,14 @@ The effect is absent when we run the \ident{ping} command twice, the second shor
 
 Assuming the timeout stays constant, we can measure it by varying the interval between ICMP packets. The dependency between the measured latency and the time delay should be constant except for one sharp increase in latency when the delays get longer than the timeout.
 
-The implementation details of this experiment and our results can be found in \cref{res:eviction-timeout}\todo{fix}.
+The implementation details of this experiment and our results can be found in \cref{res:eviction-timeout}.
 
 \section{Cost of an upcall}
 \label{design:upcall-cost}
 
 We can also use the experiment devised in the previous section to measure the cost of an upcall and reproduce Eelco Chaudron's research with a different method. While this measurement methodology leads to less precise results than when directly measuring the in-kernel execution time using eBPF, we can use it to measure the upcall cost without special privileges on publicly deployed cloud hosting services.\todo{má smysl tohle zmiňovat, když to nezkusím? Napsal jsem pár provozovatelům, jestli náhodou neprovozují OVS a uvidíme}
 
-Our results can be found in \cref{res:upcall-cost}\todo{fix}.
+Our results can be found in \cref{res:upcall-cost}.
 
 \section{Packets generating upcalls}
 \label{design:upcall-generators}
