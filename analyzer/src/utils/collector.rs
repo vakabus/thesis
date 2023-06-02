@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use csv::WriterBuilder;
+use csv::{WriterBuilder, Writer};
 
 use serde::Serialize;
 use std::{
@@ -10,7 +10,7 @@ use std::{
         Arc,
     },
     thread::{sleep, JoinHandle},
-    time::Duration,
+    time::Duration, fs::File,
 };
 
 use super::{block_signals};
@@ -73,6 +73,15 @@ impl<M: MultiMonitor> CSVCollector<M> {
         }
     }
 
+    fn collect_and_write(monitor: &mut M, output: &mut Writer<File>) -> Result<()> {
+        // collect and write data
+        let stats = monitor.collect_multiple()?;
+        for st in stats {
+            output.serialize(st)?;
+        }
+        Ok(())
+    }
+
     fn run_collector(
         stop_flag: Arc<AtomicBool>,
         filename: String,
@@ -87,11 +96,7 @@ impl<M: MultiMonitor> CSVCollector<M> {
         let mut monitor = M::new().unwrap();
 
         while !stop_flag.load(Ordering::Relaxed) {
-            // collect and write data
-            let stats = monitor.collect_multiple()?;
-            for st in stats {
-                output.serialize(st)?;
-            }
+            _ = Self::collect_and_write(&mut monitor, &mut output); // ignore errors
 
             // wait
             sleep(interval);

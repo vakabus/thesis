@@ -115,6 +115,9 @@ class Machine(ABC):
     def run_ssh_command_get_output(self, command: str | list[str]) -> str:
         pass
 
+    def interactive_ssh(self, command: list[str] | str = []):
+        self.run_ssh_command_blocking(command)
+
 
 def rsync(source: Path | str, dest: Path | str, user: str, host: str, sudo_rsync:bool=False):
     args = [
@@ -136,6 +139,8 @@ T = TypeVar("T")
 def _ssh(invoke: Callable[[list[str]], T], user: str, host: str, opts: list[str], command: list[str] | str) -> T:
     if isinstance(command, str):
         command = shlex.split(command)
+    if isinstance(command, tuple):
+        command = list(command)
     return invoke(
         [
             "ssh",
@@ -302,17 +307,6 @@ class VM(Machine):
                 except TypeError:  # ignore IP version mismatch
                     pass
         raise NotReadyError
-
-    def interactive_ssh(self, command: list[str] = []):
-        ip = self.get_ip()
-        subprocess.call(
-            [
-                "ssh",
-                *Constants.SSH_OPTS,
-                f"{Constants.PROXMOX_TEMPLATE_USER}@{ip}",
-                *command
-            ]
-        )
 
 
 @cache
@@ -513,7 +507,7 @@ def ssh(vmid, name, cmd):
     if vmid:
         get_vm_by_vmid(int(name)).interactive_ssh(cmd)
     else:
-        get_vm_by_name(name).interactive_ssh(cmd)
+        get_machine_by_name(name).interactive_ssh(cmd)
 
 
 @cli.command("provision-node")
@@ -572,7 +566,7 @@ def install_node_impl(post_init_script: Optional[str], interactive: bool, name: 
 
         vm.upload_files(Path("install-scripts/fedora36-general-init.sh"), "/tmp/init.sh")
         ret = vm.run_ssh_command_blocking(f"bash /tmp/init.sh {name}")
-        if ret not in (0, 255):
+        if ret not in (0, 1, 255):
             raise RuntimeError(f"init failed with exit code {ret}")
         
         # the machine will reboot itself shortly
@@ -686,8 +680,8 @@ def configure_nodes(machine_names: list[str]):
 @click.argument("source", type=click.Path(exists=True), nargs=1)
 @click.argument("dest", type=click.Path(exists=False), nargs=1)
 def upload(vm_name: str, source: str, dest: str):
-    vm = get_vm_by_name(vm_name)
-    vm.upload_file(Path(source), dest)
+    vm = get_machine_by_name(vm_name)
+    vm.upload_files(Path(source), dest)
 
 
 @cli.command()
@@ -713,24 +707,29 @@ def deploy_arch(master_node: str):
     sleep(1)
     vm.run_ssh_command_blocking("while ! (kubectl describe pod arch | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
 
+
+pod_master: str
+
 @cli.group("pod")
-def pod():
+@click.option("-m", "--master-node", "master_node", type=str, required=False, help="master node", default=node_hostname(1))
+def pod(master_node):
     """
     Commands related to pods
     """
-    
+    global pod_master
+    pod_master = master_node
 
 @pod.command("deploy")
 @click.argument("pod_name", type=str, nargs=1)
 def deploy_pod(pod_name: str):
-    vm = get_vm_by_name(node_hostname(1))
+    vm = get_machine_by_name(pod_master)
 
     def_file = Path(f"kube_configs/{pod_name}.yaml")
     if not def_file.exists():
         print(f"Pod definition file with name '{pod_name}' does not exist!")
         exit(1)
 
-    vm.upload_file(def_file, "/pod.yaml")
+    vm.upload_files(def_file, "/pod.yaml")
     vm.run_ssh_command_blocking("kubectl apply -f /pod.yaml")
     sleep(1)
     vm.run_ssh_command_blocking(f"while ! (kubectl describe pod {pod_name} | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
@@ -738,20 +737,20 @@ def deploy_pod(pod_name: str):
 @pod.command("delete")
 @click.argument("pod_name", type=str, nargs=1)
 def pod_delete(pod_name: str):
-    vm = get_vm_by_name(node_hostname(1))
+    vm = get_machine_by_name(pod_master)
 
     def_file = Path(f"kube_configs/{pod_name}.yaml")
     if not def_file.exists():
         print(f"Pod definition file with name '{pod_name}' does not exist!")
         exit(1)
 
-    vm.upload_file(def_file, "/pod.yaml")
+    vm.upload_files(def_file, "/pod.yaml")
     vm.run_ssh_command_blocking("kubectl delete -f /pod.yaml")
 
 @pod.command("ip")
 @click.argument("pod_name", type=str, nargs=1)
 def pod_ip(pod_name: str):
-    vm = get_vm_by_name(node_hostname(1))
+    vm = get_machine_by_name(pod_master)
     vm.run_ssh_command_blocking(f"while ! (kubectl describe pod {pod_name} | grep -E ^Node:\\\\|^IP:); do sleep 1; done")
 
 
@@ -760,7 +759,7 @@ def pod_ip(pod_name: str):
 @click.argument("pod", type=str, nargs=1)
 @click.argument("cmd", type=str, nargs=-1)
 def pod_shell(pod: str, cmd: list[str]):
-    vm = get_vm_by_name(node_hostname(1))
+    vm = get_machine_by_name(pod_master)
     if len(cmd) == 0:
         cmd = ["bash"]
     vm.interactive_ssh(["kubectl", "exec", "-ti", pod, "--"] + list(cmd))
@@ -771,7 +770,7 @@ def pod_shell(pod: str, cmd: list[str]):
 @click.argument("source", type=click.Path(exists=True), nargs=1)
 @click.argument("dest", type=click.Path(exists=False), nargs=1)
 def pod_upload(pod: str, source: str, dest: str):
-    vm = get_vm_by_name(node_hostname(1))
+    vm = get_machine_by_name(pod_master)
     vm.upload_files(source, "/.upload")
     vm.run_ssh_command_blocking(f"kubectl cp /.upload default/{pod}:{dest}; sudo rm -fr /.upload")
     if Path(source).stat().st_mode & 0o111 > 0:

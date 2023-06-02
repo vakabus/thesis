@@ -170,7 +170,7 @@ def parse_icmp_rtt(filename: str) -> Tuple[pl.DataFrame, pl.DataFrame]:
 
 
 def parse_dpctl_dump(filename: str) -> pl.DataFrame:
-    return pl.read_csv(filename)
+    return pl.read_csv(filename).rename({'ns_monotonic': 'ts'})
 
 
 def parse_vswitchd(filename: str) -> pl.DataFrame:

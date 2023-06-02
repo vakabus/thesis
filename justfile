@@ -3,138 +3,153 @@ kb1_ip := "192.168.1.221"
 kb2_ip := "192.168.1.222"
 kb3_ip := "192.168.1.223"
 
+# callback_url := "http://10.39.194.247:10001/"
+callback_url := "https://dingo-10000.vsq.cz/"
+
 # can be replaced with empty string, experiments will then not stop automatically and logs will be preserved
 shell_exit := ""
 
 set positional-arguments
 
-deploy-analyzer:
-	cd analyzer; cargo build --release --target=x86_64-unknown-linux-musl
-	poe --root cluster_tools run upload-everywhere ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
-	poe --root cluster_tools run pod upload arch ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
-	poe --root cluster_tools run pod upload victim ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
-	poe --root cluster_tools run pod upload reflector ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
-	
+deploy-analyzer nodes='.nodes.homelab':
+    #!/bin/bash
+    set -e
 
-setup: build && deploy-analyzer
-	poe --root cluster_tools run provision 3
-	poe --root cluster_tools run pod deploy arch
-	poe --root cluster_tools run pod deploy reflector
-	poe --root cluster_tools run pod deploy netserver
-	poe --root cluster_tools run pod deploy victim
+    . {{nodes}}
+    
+    pushd analyzer; cargo build --release --target=x86_64-unknown-linux-musl; popd
+    
+    poe --root cluster_tools run upload $NODE1 ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
+    poe --root cluster_tools run upload $NODE2 ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
+    poe --root cluster_tools run upload $NODE3 ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
+    poe --root cluster_tools run pod -m $NODE1 upload arch ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
+    poe --root cluster_tools run pod -m $NODE1 upload victim ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
+    poe --root cluster_tools run pod -m $NODE1 upload reflector ../analyzer/target/x86_64-unknown-linux-musl/release/analyzer /usr/bin/analyzer
+    
+
+setup: build && (setup-pods 'kb1') deploy-analyzer
+    poe --root cluster_tools run provision 3
+
+setup-pods root='kb1':
+    poe --root cluster_tools run pod --master-node {{root}} deploy arch
+    poe --root cluster_tools run pod --master-node {{root}} deploy reflector
+    poe --root cluster_tools run pod --master-node {{root}} deploy netserver
+    poe --root cluster_tools run pod --master-node {{root}} deploy victim
 
 clean:
-	poe --root cluster_tools run destroy --all
+    poe --root cluster_tools run destroy --all
 
 experiment-packet-fuzz host_node pod_ip: deploy-analyzer && plot-last-packet-fuzz
-	#!/bin/bash
-	
-	# upload binaries
-	poe --root cluster_tools run pod upload arch ../analyzer/target/release/analyzer /usr/bin/analyzer
+    #!/bin/bash
+    
+    # upload binaries
+    poe --root cluster_tools run pod upload arch ../analyzer/target/release/analyzer /usr/bin/analyzer
 
-	# prepare global experiment ID
-	experiment_id="packet_fuzz_$(date --iso-8601=minutes)"
+    # prepare global experiment ID
+    experiment_id="packet_fuzz_$(date --iso-8601=minutes)"
 
-	# start accepting test results
-	cd analyzer/results
-	mkdir $experiment_id
-	gimmedat --port 10001 --listen-ip 0.0.0.0 --secret irrelevant --public-access $experiment_id &
-	cd ../..
+    # start accepting test results
+    cd analyzer/results
+    mkdir $experiment_id
+    gimmedat --port 10000 --listen-ip 0.0.0.0 --secret irrelevant --public-access $experiment_id &
+    cd ../..
 
-	# run experiment
-	tmux new -d -s thesis-packet-fuzz \; split-window -h \;
-	tmux send-keys -t thesis-packet-fuzz.1 "poe --root cluster_tools run pod ssh arch" ENTER
-	tmux send-keys -t thesis-packet-fuzz.0 "poe --root cluster_tools run ssh kb2" ENTER
-	sleep 4
-	tmux send-keys -t thesis-packet-fuzz.1 "analyzer install-dependencies; analyzer --push-results-url http://dingo.folk-stork.ts.net:10000/ packet-fuzz" ENTER
-	tmux send-keys -t thesis-packet-fuzz.0 "sudo analyzer install-dependencies; sudo analyzer --push-results-url http://dingo.folk-stork.ts.net:10000/ log-flow-stats --log-ip {{pod_ip}}" ENTER
-	tmux attach -t thesis-packet-fuzz
-	
-	# stop accepting results
-	kill %gimmedat
+    # run experiment
+    tmux new -d -s thesis-packet-fuzz \; split-window -h \;
+    tmux send-keys -t thesis-packet-fuzz.1 "poe --root cluster_tools run pod ssh arch" ENTER
+    tmux send-keys -t thesis-packet-fuzz.0 "poe --root cluster_tools run ssh kb2" ENTER
+    sleep 4
+    tmux send-keys -t thesis-packet-fuzz.1 "analyzer install-dependencies; analyzer --push-results-url {{callback_url}} packet-fuzz" ENTER
+    tmux send-keys -t thesis-packet-fuzz.0 "sudo analyzer install-dependencies; sudo analyzer --push-results-url {{callback_url}} log-flow-stats --log-ip {{pod_ip}}" ENTER
+    tmux attach -t thesis-packet-fuzz
+    
+    # stop accepting results
+    kill %gimmedat
 
-experiment-packet-flood count='20000': deploy-analyzer && plot-last-packet-flood link-last-packet-flood
-	#!/bin/bash
-	
-	# prepare global experiment ID
-	experiment_id="packet_flood_$(date --iso-8601=minutes)"
+experiment-packet-flood count='20000' nodes='.nodes.homelab': ( deploy-analyzer nodes ) && plot-last-packet-flood link-last-packet-flood
+    #!/bin/bash
 
-	# start accepting test results
-	pushd analyzer/results
-	mkdir $experiment_id
-	gimmedat --port 10001 --listen-ip 0.0.0.0 --secret irrelevant --public-access $experiment_id &
-	popd
+    # load config variables
+    . {{nodes}}
+    
+    # prepare global experiment ID
+    experiment_id="packet_flood_$(date --iso-8601=minutes)"
 
-	# install dependencies
-	poe --root cluster_tools run ssh kb2 -- sudo analyzer install-dependencies
-	# poe --root cluster_tools run ssh kb2 -- sudo nsenter -m -t \$\(pgrep ovs-vswitchd\) dnf install -y perf
-	# poe --root cluster_tools run ssh kb2 -- sudo nsenter -m -t \$\(pgrep ovs-vswitchd\) dnf debuginfo-install -y elfutils-libelf-0.189-1.fc37.x86_64 glibc-2.36-9.fc37.x86_64 libatomic-12.2.1-4.fc37.x86_64 libbpf-0.8.0-2.fc37.x86_64 libcap-ng-0.8.3-3.fc37.x86_64 libevent-2.1.12-7.fc37.x86_64 libnghttp2-1.51.0-1.fc37.x86_64 libzstd-1.5.4-1.fc37.x86_64 numactl-libs-2.0.14-6.fc37.x86_64 openssl-libs-3.0.8-1.fc37.x86_64 protobuf-c-1.4.1-2.fc37.x86_64 python3-libs-3.11.2-1.fc37.x86_64 unbound-libs-1.17.1-1.fc37.x86_64 zlib-1.2.12-5.fc37.x86_64
-	poe --root cluster_tools run pod ssh arch -- analyzer install-dependencies
-	poe --root cluster_tools run pod ssh victim -- analyzer install-dependencies
+    # start accepting test results
+    pushd analyzer/results
+    mkdir $experiment_id
+    gimmedat --port 10000 --listen-ip 0.0.0.0 --secret irrelevant --public-access $experiment_id &
+    echo "{{nodes}}" > $experiment_id/nodes
+    popd
 
-	# run experiment
-	tmux new -d -s thesis-packet-flood \; split-window -h \; split-window -v \;
-	tmux send-keys -t thesis-packet-flood.0 "poe --root cluster_tools run ssh kb2 -- sh -c \"\\\"sudo analyzer --push-results-url https://dingo.folk-stork.ts.net:10000/ node-logger --perf --only-upcalls --runtime-sec 85\\\"\" ; {{shell_exit}}" ENTER
-	tmux send-keys -t thesis-packet-flood.1 "poe --root cluster_tools run pod ssh victim -- sh -c \"\\\"analyzer --push-results-url https://dingo.folk-stork.ts.net:10000/ victim --runtime-sec 85\\\"\" ; {{shell_exit}}" ENTER
-	tmux send-keys -t thesis-packet-flood.2 "poe --root cluster_tools run pod ssh arch -- sh -c \"\\\"sleep 10; analyzer --push-results-url https://dingo.folk-stork.ts.net:10000/ packet-flood --count {{count}} --runtime-sec 60\\\"\" ; {{shell_exit}}" ENTER
-	
-	tmux attach -t thesis-packet-flood
-	
-	# stop accepting results
-	kill %gimmedat
-	
+    # install dependencies
+    poe --root cluster_tools run ssh $NODE2 -- sudo analyzer install-dependencies
+    poe --root cluster_tools run pod -m $NODE1 ssh arch -- analyzer install-dependencies
+    poe --root cluster_tools run pod -m $NODE1 ssh victim -- analyzer install-dependencies
+
+    # run experiment
+    tmux new -d -s thesis-packet-flood \; split-window -h \; split-window -v \;
+    tmux send-keys -t thesis-packet-flood.0 "poe --root cluster_tools run ssh $NODE2 -- sh -c \"\\\"sudo analyzer --push-results-url {{callback_url}} node-logger --only-upcalls --runtime-sec 85\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.1 "poe --root cluster_tools run pod -m $NODE1 ssh victim -- sh -c \"\\\"analyzer --push-results-url {{callback_url}} victim --runtime-sec 85\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.2 "poe --root cluster_tools run pod -m $NODE1 ssh arch -- sh -c \"\\\"sleep 10; analyzer --push-results-url {{callback_url}} packet-flood --count {{count}} --runtime-sec 60\\\"\" ; {{shell_exit}}" ENTER
+    
+    tmux attach -t thesis-packet-flood
+    
+    # stop accepting results
+    kill %gimmedat
+    
 plot-last-packet-fuzz:
-	cd analyzer; QT_QPA_PLATFORM=xcb python postprocessing/packet_fuzzing.py $(ls -d results/packet_fuzz_* | sort | tail -n 1)
+    cd analyzer; QT_QPA_PLATFORM=xcb python postprocessing/packet_fuzzing.py $(ls -d results/packet_fuzz_* | sort | tail -n 1)
 
 
 plot-last-packet-flood:
-	cd analyzer; QT_QPA_PLATFORM=xcb python postprocessing/packet_flood.py $(ls -d results/packet_flood_2023* | sort | tail -n 1)
+    cd analyzer; QT_QPA_PLATFORM=xcb python postprocessing/packet_flood.py $(ls -d results/packet_flood_2023* | sort | tail -n 1)
 
 
 @poe *args:
-	poe --root cluster_tools run {{args}}
+    poe --root cluster_tools run {{args}}
 
 pod *args:
-	poe --root cluster_tools run pod {{args}}
+    poe --root cluster_tools run pod {{args}}
 
 plot type file:
-	#!/bin/bash
-	case "{{type}}" in
-		randomized_eviction_timeout)
-			QT_QPA_PLATFORM=xcb python analyzer/postprocessing/randomized_eviction_timeout.py {{file}}
-			;;
-		*fuzz*)
-			QT_QPA_PLATFORM=xcb python analyzer/postprocessing/packet_fuzzing.py {{file}}
-			;;
-		*flood*)
-			QT_QPA_PLATFORM=xcb python analyzer/postprocessing/packet_flood.py {{file}}
-			;;
-		*)
-			echo "Unknown plot type $type"
-			;;
-	esac
+    #!/bin/bash
+    case "{{type}}" in
+        randomized_eviction_timeout)
+            QT_QPA_PLATFORM=xcb python analyzer/postprocessing/randomized_eviction_timeout.py {{file}}
+            ;;
+        *fuzz*)
+            QT_QPA_PLATFORM=xcb python analyzer/postprocessing/packet_fuzzing.py {{file}}
+            ;;
+        *flood*)
+            QT_QPA_PLATFORM=xcb python analyzer/postprocessing/packet_flood.py {{file}}
+            ;;
+        *)
+            echo "Unknown plot type $type"
+            ;;
+    esac
 
 ssh where:
-	poe --root cluster_tools run ssh {{where}}
+    poe --root cluster_tools run ssh {{where}}
 
 
 build:
-	#!/bin/bash
+    #!/bin/bash
 
-	cd analyzer
-	cargo build --release --target=x86_64-unknown-linux-musl
-	podman build -t registry.homelab.vsq.cz/analyzer .
-	podman push registry.homelab.vsq.cz/analyzer
+    cd analyzer
+    cargo build --release --target=x86_64-unknown-linux-musl
+    podman build -t registry.homelab.vsq.cz/analyzer .
+    podman push registry.homelab.vsq.cz/analyzer
 
 
 localize-containers:
-	podman pull docker.io/archlinux:latest
-	podman tag docker.io/archlinux:latest registry.homelab.vsq.cz/archlinux:latest
-	podman push registry.homelab.vsq.cz/archlinux:latest
+    podman pull docker.io/archlinux:latest
+    podman tag docker.io/archlinux:latest registry.homelab.vsq.cz/archlinux:latest
+    podman push registry.homelab.vsq.cz/archlinux:latest
 
-	podman pull ghcr.io/ovn-org/ovn-kubernetes/ovn-kube-f:master
-	podman tag ghcr.io/ovn-org/ovn-kubernetes/ovn-kube-f:master registry.homelab.vsq.cz/ovn-kube-f:master
-	podman push registry.homelab.vsq.cz/ovn-kube-f:master
+    podman pull ghcr.io/ovn-org/ovn-kubernetes/ovn-kube-f:master
+    podman tag ghcr.io/ovn-org/ovn-kubernetes/ovn-kube-f:master registry.homelab.vsq.cz/ovn-kube-f:master
+    podman push registry.homelab.vsq.cz/ovn-kube-f:master
 
 
 prep-builder:
@@ -199,3 +214,10 @@ link-last-packet-flood:
 
 test-kb2-tracing:
     poe --root cluster_tools run ssh kb2 -- sudo bpftrace -p \$\(pgrep ovs-vswitchd\) -e \'usdt:/proc/\'\$\(pgrep ovs-vswitchd\)\'/root/usr/sbin/ovs-vswitchd:udpif_revalidator:new_flow_limit \{ printf\(\"new flow limit: %lld\\n\", arg0\)\; \}\'
+
+
+text:
+    make -C text
+
+show-text:
+    evince text/thesis.pdf &

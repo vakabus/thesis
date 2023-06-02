@@ -5,7 +5,6 @@ export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
 
 # wait for full startup
 echo "Waiting for full system startup..."
-#sudo systemctl is-system-running --wait   # this seems to be broken on Fedora38, never exits
 while [[ "$(systemctl show --property=SystemState)" != "SystemState=running" ]]; do
     sleep 1
 done
@@ -149,13 +148,21 @@ DNS=192.168.1.1
 EOF
 
     # management NIC on the big server
-    cat <<EOF | sudo tee /etc/systemd/network/eno3.network
+#    cat <<EOF | sudo tee /etc/systemd/network/eno3.network
+#[Match]
+#Name=eno3
+#
+#[Network]
+#DHCP=ipv4
+#EOF
+    cat <<EOF | sudo tee /etc/systemd/network/breno3.network
 [Match]
-Name=eno3
+Name=breno3
 
 [Network]
-DHCP=yes
+DHCP=ipv4
 EOF
+
     # cluster NIC on the big server
     cat <<EOF | sudo tee /etc/systemd/network/eno1.network
 [Match]
@@ -269,12 +276,6 @@ sudo dnf install --best --refresh -y --setopt=tsflags=nodocs $INSTALL_PKGS
 setup_sudo_rsync
 
 
-# remove systemd-resolved before reboot
-# sudo dnf remove -y systemd-resolved
-# sudo rm -f /etc/resolv.conf
-# echo "DNS=192.168.1.1" | sudo tee -a /etc/systemd/resolved.conf
-
-
 # install container runtime
 install_docker
 
@@ -282,8 +283,8 @@ install_docker
 install_kubernetes
 
 
-# configure_systemd_networkd $1
-configure_network_manager $1
+configure_systemd_networkd $1
+# configure_network_manager $1
 
 echo "KUBELET_EXTRA_ARGS=\"--node-ip=$(cluster_ip $1)\"" > /etc/sysconfig/kubelet
 systemctl restart kubelet
@@ -293,8 +294,13 @@ systemctl restart kubelet
 cd $HOME
 git clone https://github.com/ovn-org/ovn-kubernetes || true
 cd ovn-kubernetes
-make -C go-controller
-sudo make -C go-controller install
+# make -C go-controller
+# sudo make -C go-controller install
 
 
-reboot
+# remove systemd-resolved before reboot
+# sudo dnf remove -y systemd-resolved
+# sudo rm -f /etc/resolv.conf
+#echo "DNS=192.168.1.1" | sudo tee -a /etc/systemd/resolved.conf
+
+sudo reboot

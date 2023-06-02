@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{bail, Result};
 use procfs::process::Process;
 use serde::Serialize;
@@ -21,23 +23,31 @@ pub struct Datapoint {
     vswitchd_vsize_bytes: u64,
 }
 
+fn get_vswitchd_proc() -> Result<Process> {
+    for proc in procfs::process::all_processes()? {
+        let proc = proc?;
+        if let Ok(stat) = proc.stat() {
+            if stat.comm == "ovs-vswitchd" {
+                return Ok( proc );
+            }
+        }
+    }
+    bail!("no ovs-vswitchd found");
+}
+
 impl Monitor for VSwitchdMonitor {
     type Stats = Datapoint;
 
     fn new() -> Result<Self> {
-        for proc in procfs::process::all_processes()? {
-            let proc = proc?;
-            if let Ok(stat) = proc.stat() {
-                if stat.comm == "ovs-vswitchd" {
-                    return Ok(VSwitchdMonitor { proc });
-                }
-            }
-        }
-
-        bail!("did not find vswitchd process");
+        let proc = get_vswitchd_proc()?;
+        Ok(VSwitchdMonitor { proc })
     }
 
     fn collect(&mut self) -> anyhow::Result<Datapoint> {
+        if ! self.proc.is_alive() {
+            self.proc = get_vswitchd_proc()?;
+        }
+
         let stat = self.proc.stat()?;
 
         Ok(Datapoint {

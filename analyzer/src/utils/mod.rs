@@ -53,6 +53,7 @@ pub fn wait_for_signal_or_timeout(expect: i32, timeout: Duration) -> anyhow::Res
         // check signals
         for sig in signals.pending() {
             if sig == expect {
+                debug!("signal {} received", signal_name(sig).unwrap());
                 return Ok(());
             } else {
                 bail!("received signal {} when expecting {}", signal_name(sig).unwrap(), signal_name(expect).unwrap());
@@ -63,6 +64,8 @@ pub fn wait_for_signal_or_timeout(expect: i32, timeout: Duration) -> anyhow::Res
         let wait = Duration::min(Instant::now() - start + timeout, Duration::from_millis(250));
         sleep(wait);
     }
+
+    debug!("timeout reached");
     // timeout
     Ok(())
 }

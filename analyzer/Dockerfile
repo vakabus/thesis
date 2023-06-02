@@ -1,6 +1,6 @@
 FROM archlinux
 
-RUN pacman -Sy --noconfirm iptables
+RUN yes | pacman -Sy iptables-nft
 
 COPY target/x86_64-unknown-linux-musl/release/analyzer /analyzer
 

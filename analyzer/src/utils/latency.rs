@@ -61,7 +61,7 @@ impl Monitor for PingMonitor {
     where
         Self: Sized {
         Ok(PingMonitor {
-            addr: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+            addr: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 221)),
         })
     }
 

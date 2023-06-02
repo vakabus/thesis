@@ -13,5 +13,13 @@ spec:
       - "infinity"
     imagePullPolicy: IfNotPresent
   restartPolicy: Always
-  nodeSelector:
-    "kubernetes.io/hostname": "kb2"
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - kb2
+            - wsfd-netdev65.ntdv.lab.eng.bos.redhat.com
