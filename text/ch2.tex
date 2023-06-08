@@ -35,7 +35,7 @@ We named our cluster nodes \kb{1}, \kb{2}, and \kb{3}. The node \kb{1} is always
 \section{Hardware environment}
 \label{sec:hw-env}
 
-We installed the experimental cluster in two different hardware configurations. One installation run virtualized on Proxmox VE. The other installation used dedicated hardware.
+We installed the experimental cluster in two different hardware configurations. One installation run virtualized on Proxmox VE. The other installation used dedicated hardware. When we write about an experiment and do not specify where it runs, we are presenting results from the cluster on dedicated hardware.
 
 \paragraph{Virtualized installation}
 We used the virtualized environment for development and debugging. The physical host was running Proxmox VE 7.4-3, and it was configured with an Intel\textsuperscript{\textregistered} Core\textsuperscript{TM} i7-3770 CPU running at 3.40 GHz with $4$ cores, $8$ threads, and $31.23$ GiB of RAM.
@@ -72,11 +72,12 @@ PING kb3 (192.168.1.223) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.304/0.536/1.185/0.326 ms
 \end{lstlisting}
 
-The effect is absent when we run the \ident{ping} command twice, the second shortly after the first. If we wait longer, the first packet is delayed again. This behavior can be explained by a flow rule eviction timeout that removes the rule from the datapath's forwarding table.
+The first packet delay is absent when we run the \ident{ping} command for the second time shortly after the first. The higher latency is visible again. This behavior can be explained by a flow rule eviction timeout that removes the rule from the datapath's forwarding table.
 
 Assuming the timeout stays constant, we can measure it by varying the interval between ICMP packets. The dependency between the measured latency and the time delay should be constant except for one sharp increase in latency when the delays get longer than the timeout.
 
 The implementation details of this experiment and our results can be found in \cref{res:eviction-timeout}.
+\todo{shouldn't the implementation details be only here?}
 
 \section{Cost of an upcall}
 \label{design:upcall-cost}
