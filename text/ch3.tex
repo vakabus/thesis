@@ -136,7 +136,7 @@ Because OVS's datapath flow rules are much simpler than OpenFlow flow rules, the
 
 Looking at the problem from the other side, OVS's datapath is designed to assign packets to logical flows and execute the flow actions in as few instructions as possible. There are no precedence rules in the datapath flow table, the first matching rule is used and the order of insertion is not maintained. There are also only positive matches, no negative matches. Therefore, a single rule to drop all packets except for those with a given MAC address is impossible to construct.
 
-\paragraph{Impossible implementation} MAC spoofing protection for a single MAC address can be implemented using 48 rules, each checking for a single flipped bit in the Ethernet address compared to the allowed address. All other rules in the flow table would have to check for a matching MAC address to prevent rule overlaps. With multiple allowed Ethernet addresses, the number of rules to drop the invalid packets would grow significantly and all other rules would have to be specified as many times as there are allowed MAC addresses.
+\paragraph{Impossible implementation} MAC spoofing protection for a single MAC address can be implemented using 48 rules\todo{potentially not true, what about recirculation?}, each checking for a single flipped bit in the Ethernet address compared to the allowed address. All other rules in the flow table would have to check for a matching MAC address to prevent rule overlaps. With multiple allowed Ethernet addresses, the number of rules to drop the invalid packets would grow significantly and all other rules would have to be specified as many times as there are allowed MAC addresses.
 
 However, to implement the protection as described, \ident{ovs-vswitchd} would have to know that MAC spoofing protection is desired. OVN (or any other SDN) configures OVS through OpenFlow rules which can not express negative matches either. The MAC spoofing protection is therefore implemented as several linked rule tables with explicit rule priorities and rule actions resubmitting the packets to different tables. Therefore, \ident{ovs-vswitchd} can not easily infer the intention and translate the flow rules properly.
 
@@ -155,6 +155,7 @@ ARP packets with varying hardware addresses behave the same as ordinary Ethernet
 \section{Impact of upcall heavy traffic}
 
 \subsection{Standard behavior}
+\label{subsec:standard-behavior}
 
 \begin{figure}
     \centering
@@ -195,7 +196,7 @@ In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-ba
 
 Whenever our stress tool runs, the red bar becomes saturated and dense. Our tool tries to send packets in regular intervals, so the red bar should appear mostly homogeneous. At the end of the test, we report the results over the network and our tools are not perfectly synchronized, hence small upcall clusters at the end of the experiment are to be expected.
 
-In \cref{fig:plot-packet-flood-bare-50k}, we can see a lot of upcalls happen before the stress test starts and they do not appear to be happening afterwards. We do not know what is causing it. An ICMP and UDP latency test is running in the background (results in \todo{link do sekce s latenci}) as well as an SSH connection, but these packets should not be causing a significant number of upcalls. Furthermore, if it were caused by these packets, it should have continued after the stress test had finished. The other experiment shown here in \cref{fig:plot-packet-flood-bare-15k} has these upcalls both before and after the stress test. In other tests, we have also observed no extra upcalls.
+In \cref{fig:plot-packet-flood-bare-50k}, we can see a lot of upcalls happen before the stress test starts and they do not appear to be happening afterwards. We do not know what is causing it.\todo{FALSE! We know!} An ICMP and UDP latency test is running in the background (results in \todo{link do sekce s latenci}) as well as an SSH connection, but these packets should not be causing a significant number of upcalls. Furthermore, if it were caused by these packets, it should have continued after the stress test had finished. The other experiment shown here in \cref{fig:plot-packet-flood-bare-15k} has these upcalls both before and after the stress test. In other tests, we have also observed no extra upcalls.
 
 \paragraph{System load}
 Our packet flooding tool is a single-threaded application and therefore directly contributes to the load averages only by a value of 1 or less. The current limit of our stress test tool running on the dedicated servers is roughly 200k packets per second on a single CPU core. However, we observe a significantly higher load average in both recorded experiments, in \cref{fig:plot-packet-flood-bare-50k} and in \cref{fig:plot-packet-flood-bare-15k}. Except for our experiment, the system is idle. Hence we attribute the additional system load to OVS. As we discussed before\todo{where?}, OVS uses multiple threads during normal operation. By default, the revalidator threads iterate over the whole flow table every 500 \si{\milli\second} and command the kernel to delete flow rules. The upcall handlers continuously translate OpenFlow rules to datapath rules and command the kernel to insert new flow rules. All of this busy work causes an extra system load.
@@ -209,6 +210,193 @@ Same as with the system load, memory usage bypasses resource accounting. A conta
 
 \subsection{Impact on latency}
 
+\begin{figure}
+    \centering
+    \includegraphics[width=.9\linewidth]{img/packet_flood_50k_latency.png}
+    \caption{Round trip times during 50k upcalls/sec stress test}
+    \label{fig:plot-packet-flood-50k-latency}
+\end{figure}
 
-\subsection{Performance when resource limited}
+\Cref{fig:plot-packet-flood-50k-latency} shows the results of a different run of the same experiment. The plot shows only the latencies measured from the \ident{victim}\todo{describe the test architecture} pod. The ICMP tests target the node IP address of \kb{1}, the UDP tests target the node IP address of \kb{3}. The horizontal lines mark the ranges of samples used for a statistical test.
 
+While there does not seem to be any practically significant difference between stressed and non-stressed system in the round-trip-times, the difference is statistically significant. Considering only the UDP-based results, there are $2255$ samples in the stressed range with a mean value of $175980 \pm 1320$ \si{\nano\second}\footnote{$95\%$ confidence interval, assuming normal distribution}. The non-stressed range has 1876 samples and a mean value of $164404 \pm 1174$ \si{\nano\second}. The difference between the means is $11576$ \si{\nano\second}.
+
+% stressed UDP latency
+% shape: (9, 3)
+% ┌────────────┬────────────┬───────────────┐
+% │ describe   ┆ ts         ┆ latency_ns    │
+% │ ---        ┆ ---        ┆ ---           │
+% │ str        ┆ f64        ┆ f64           │
+% ╞════════════╪════════════╪═══════════════╡
+% │ count      ┆ 2255.0     ┆ 2255.0        │
+% │ null_count ┆ 0.0        ┆ 0.0           │
+% │ mean       ┆ 68.502237  ┆ 175980.142794 │
+% │ std        ┆ 32.628849  ┆ 31963.391742  │
+% │ min        ┆ 12.025217  ┆ 98250.0       │
+% │ max        ┆ 124.979466 ┆ 762959.0      │
+% │ median     ┆ 68.502056  ┆ 173259.0      │
+% │ 25%        ┆ 40.238689  ┆ 155156.0      │
+% │ 75%        ┆ 96.765862  ┆ 193006.0      │
+% └────────────┴────────────┴───────────────┘
+% (175980.14279379157, 174660.18226166346, 177300.10332591968)
+% non-stressed UDP latencies
+% shape: (9, 3)
+% ┌────────────┬────────────┬───────────────┐
+% │ describe   ┆ ts         ┆ latency_ns    │
+% │ ---        ┆ ---        ┆ ---           │
+% │ str        ┆ f64        ┆ f64           │
+% ╞════════════╪════════════╪═══════════════╡
+% │ count      ┆ 1876.0     ┆ 1876.0        │
+% │ null_count ┆ 0.0        ┆ 0.0           │
+% │ mean       ┆ 191.99893  ┆ 164404.665245 │
+% │ std        ┆ 27.143008  ┆ 25925.644717  │
+% │ min        ┆ 145.023486 ┆ 107262.0      │
+% │ max        ┆ 238.975234 ┆ 495776.0      │
+% │ median     ┆ 191.999098 ┆ 161704.5      │
+% │ 25%        ┆ 168.52374  ┆ 146410.0      │
+% │ 75%        ┆ 215.52409  ┆ 178624.0      │
+% └────────────┴────────────┴───────────────┘
+% (164404.66524520254, 163230.7366655189, 165578.5938248862)
+
+
+\section{Performance when resource limited}
+
+In \cref{subsec:standard-behavior}, we talked about extra memory and CPU usage of /ident{ovs-vswitchd}. The default containerized deployment of OVN-Kubernetes limits\footnote{https://github.com/ovn-org/ovn-kubernetes/blob/b982b8cadba939c55010829f61eb5ebe4fd90794/dist/templates/ovs-node.yaml.j2\#L84-L90} \ident{ovs-vswitchd} to 400 MiB of physical memory and two-tenths of a single CPU core. In the remainder of this section, when we write about limiting memory or CPU, we mean using Kubernetes to enforce the resource limit just as the default containerized deployment does it.
+
+\subsection{Memory limit}
+We tried limiting only the memory usage of \ident{ovs-vswitchd}, leaving the CPU time unlimited. When we flooded the system with upcalls, \ident{ovs-vswitchd} crashed without leaving any meaningful error message behind. During normal operations, everything seemed normal.
+
+We tried to limit the number of flow rules using the following command:
+\begin{verbatim}
+ovs-vsctl set Open_vSwitch . other_config:flow-limit=10000
+\end{verbatim}
+
+The limit somewhat helps and when the upcall frequency is not too high (double or triple the limit), everything works. However, once we flood the network with even more packets, the flow limit is overshot and \ident{ovs-vswitchd} again crashes.
+
+Our theory is that the crash happens during the revalidator dump phase, when \ident{ovs-vswitchd} makes a copy of all in-kernel flow rules in the userspace. This allocates more memory than allowed and the container is subsequently terminated:
+
+\begin{quote}
+    A Container can exceed its memory request if the Node has memory available. But a Container is not allowed to use more than its memory limit. If a Container allocates more memory than its limit, the Container becomes a candidate for termination. If the Container continues to consume memory beyond its limit, the Container is terminated. If a terminated Container can be restarted, the kubelet restarts it, as with any other type of runtime failure.
+    \todo{link source https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/}
+\end{quote}
+
+
+\subsection{CPU limit}
+
+When CPU bound, \ident{ovs-vswitchd} does not crash. It tries to do the opposite and dynamically change the datapath's flow rule limit based on the revalidator thread's performance.\todo{link to source} We can see the effect in \cref{fig:packet-flood-limited}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.9\linewidth]{img/packet_flood_limited_resources_50k.png}
+    \caption{5k upcalls/sec stress test}
+    \label{fig:packet-flood-limited}
+\end{figure}
+
+When compared to the previous experiments:
+
+\begin{itemize}
+    \item The rate of upcalls is only $5000$ per second, $\frac{1}{10}$ of the experiments before.
+    \item Memory usage stays almost constant.
+    \item Load average (1 minute) peaks at the value 2, but stays below 1 most of the time.
+    \item The size of the datapath flow table varies a lot more. We can see the same higher frequency variations as before, but now they are combined with lower frequency variations created by the dynamically changing flow limit.
+    \item Latency measurements are added to the plot (beware of the unusual units). They are the same as when we talked about latency before, now combined in a single experiment. The highest round-trip-time observed is around 10 seconds long. Sometimes, sending a packet completely fails (indicated by thicker dots below the number line).
+\end{itemize}
+
+
+\section{Accidental bug discovery}
+\todo{this is really a placeholder with the email I wrote, replace it with something meaningful...}
+
+Hi,
+
+I think I might have found a bug or just a really weird unexpected behavior. I am reporting it here, but I've reproduced it only on systems with OVN-Kubernetes and OVN. I don't know whether it can be replicated with standalone OVS.
+
+
+\subsection{Test environment}
+
+
+3 node Kubernetes cluster using OVN-Kubernetes, Docker and Fedora 38. All nodes in a single LAN with IPs 192.168.1.{221,222,223}. From now on, I will refer to the nodes only by the last digit of their IP address.
+
+
+\subsection{Steps to reproduce:}
+
+
+\begin{enumerate}
+\item install a pod with a shell and a ping command (I am using docker.io/archlinux:latest, always running on node 222)
+\item run `kubectl exec -ti \$POD\_NAME -- ping 192.168.1.221`
+\item in a different terminal, ssh into the host of the pod (in my case node 222) and run `ovs-dpctl del-flows`
+\item observe the measured latencies
+\item keep the ping running and kill ovs-vswitchd on the host and wait for its restart
+\item observe the latencies
+\end{enumerate}
+
+
+\subsection{What I observe}
+
+
+\begin{verbatim}
+[root@wsfd-netdev64 ~]# kubectl exec -ti arch -- ping 192.168.1.221
+PING 192.168.1.221 (192.168.1.221) 56(84) bytes of data.
+64 bytes from 192.168.1.221: icmp_seq=1 ttl=63 time=0.543 ms
+64 bytes from 192.168.1.221: icmp_seq=2 ttl=63 time=0.160 ms
+64 bytes from 192.168.1.221: icmp_seq=3 ttl=63 time=0.119 ms
+64 bytes from 192.168.1.221: icmp_seq=4 ttl=63 time=0.144 ms
+64 bytes from 192.168.1.221: icmp_seq=5 ttl=63 time=0.137 ms
+64 bytes from 192.168.1.221: icmp_seq=6 ttl=63 time=0.996 ms  # < ovs-dpctl del-flows
+64 bytes from 192.168.1.221: icmp_seq=7 ttl=63 time=0.808 ms
+64 bytes from 192.168.1.221: icmp_seq=8 ttl=63 time=1.01 ms
+64 bytes from 192.168.1.221: icmp_seq=9 ttl=63 time=1.24 ms
+64 bytes from 192.168.1.221: icmp_seq=10 ttl=63 time=1.20 ms
+64 bytes from 192.168.1.221: icmp_seq=11 ttl=63 time=1.14 ms
+64 bytes from 192.168.1.221: icmp_seq=12 ttl=63 time=1.10 ms  # < killall ovs-vswitchd
+  From 10.244.1.5 icmp_seq=22 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=23 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=24 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=25 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=26 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=27 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=28 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=29 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=31 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=32 Destination Host Unreachable
+64 bytes from 192.168.1.221: icmp_seq=34 ttl=63 time=1371 ms
+64 bytes from 192.168.1.221: icmp_seq=35 ttl=63 time=322 ms
+64 bytes from 192.168.1.221: icmp_seq=36 ttl=63 time=0.186 ms
+64 bytes from 192.168.1.221: icmp_seq=37 ttl=63 time=0.192 ms
+64 bytes from 192.168.1.221: icmp_seq=38 ttl=63 time=0.140 ms
+64 bytes from 192.168.1.221: icmp_seq=39 ttl=63 time=0.163 ms
+^C
+--- 192.168.1.221 ping statistics ---
+39 packets transmitted, 18 received, +10 errors, 53.8462% packet loss, time 38769ms
+rtt min/avg/max/mdev = 0.119/94.570/1370.551/318.102 ms, pipe 3
+\end{verbatim}
+
+After flushing the datapath flow rules, the RTTs increase. This indicates an upcall for every single packet. I confirmed this by tracing the kernel and the upcalls are definitely there (actually, this is how I discovered the whole issue). The system can remain in this state for a long time (at least minutes).
+
+After restarting vswitchd, the upcalls stop happening and everything is fast again.
+
+
+I have also confirmed, that the same thing happens to UDP packets. The same also happens regardless of which node in the cluster I target, even the pod's host.
+
+
+\subsection{What I expect}
+
+
+I expected only a few upcalls in response to flushing the datapath, after which a new datapath rules would get inserted into the kernel.
+
+
+\subsection{Repeatability}
+
+
+Flushing the rules and restarting vswitchd seems to be a certain method to flip the system between the two different states. However the upcall-making state seems unstable and it sometimes reverts back to the expected lower-latency state by itself. It appears to me that flooding the system with unrelated upcalls and rules increases the chance of an "autonomous fix".
+
+
+At this point, I don't believe this would cause significant problems. I just find the behavior extremely weird.
+
+Is there something more I could provide to help with reproducing this? Or should I report it elsewhere?
+
+
+Best,
+Vašek Šraier 
+
+\section{Lock contention investigation}
+\todo{write about the fact, that there does not seem to be a problematic lock in OVS, because we checked them almost all}
