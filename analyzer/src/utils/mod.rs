@@ -16,6 +16,7 @@ pub mod results_uploader;
 pub mod tcpdump;
 pub mod vswitchd_monitor;
 pub mod rr;
+pub mod loadavg;
 
 pub fn dump_file(name: &str, ext: &str) -> String {
     format!("{}_{}.{}", name, chrono::Local::now().to_rfc3339(), ext)

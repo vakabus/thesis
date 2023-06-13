@@ -1,5 +1,6 @@
 #![feature(is_some_and)]
 #![feature(result_option_inspect)]
+#![feature(bigint_helper_methods)]
 
 #[macro_use]
 extern crate log;
@@ -37,7 +38,7 @@ enum Experiments {
     /// run packet fuzzing
     PacketFuzz(experiments::packet_fuzzing::PacketFuzzingArgs),
 
-    /// test EBPF flow monitoring
+    /// test eBPF flow monitoring
     LogFlowOps(experiments::log_flow_ops::LogFlowOpArgs),
 
     /// Install dependencies on the distro

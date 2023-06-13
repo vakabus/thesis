@@ -3,13 +3,13 @@ use std::{thread::sleep, time::{Duration}, sync::{Arc, atomic::{AtomicBool, Orde
 use anyhow::bail;
 use clap::{ArgGroup, Parser};
 
-use crate::utils::{clock_ns, raw_socket::RawSocket};
+use crate::utils::{clock_ns, raw_socket::{RawSocket, IOUringRawSocket}};
 
 #[derive(Parser, Debug)]
 #[clap(group(
     ArgGroup::new("number of packets")
         .required(true)
-        .args(&["count", "interval_ns", "freq"]),
+        .args(&["count", "interval_ns", "freq", "nolimit"]),
 ))]
 pub struct PacketFloodArgs {
     /// How many flows to keep in the table.
@@ -31,12 +31,16 @@ pub struct PacketFloodArgs {
     /// how long to run for in seconds
     #[arg(long)]
     runtime_sec: Option<u64>,
+
+    #[arg(long)]
+    nolimit: bool,
 }
 
 pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
     let interval_ns = calculate_sending_interval_ns(&args)?;
     let mut sent = 0;
     let mut raw_socket = RawSocket::new();
+    let ior = IOUringRawSocket::new()?;
     info!(
         "  => new rule every {:?} => expected {} rules in the flow table after {:?}",
         Duration::from_nanos(interval_ns),
@@ -52,25 +56,52 @@ pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
     } else {
         u64::MAX
     };
+    let mut stat_count: u64 = 1;
 
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&stop)).unwrap();
     while !stop.load(Ordering::Relaxed) {
         // send as many packets as should have been sent by now
         let now = clock_ns()?;
-        while sent * interval_ns + start_time < now {
+
+
+        /*let old_sent = sent;
+        while sent * interval_ns + start_time < now && sent - old_sent < 10_000 {
             raw_socket.send_ethernet_pkt_from_unique_mac()?;
             sent += 1;
-        }
+        }*/
+
+        /*
+        let cnt = u64::min((now - start_time) / interval_ns - sent, 10_000);
+        raw_socket.unique_mac_pkts_rapid_fire(cnt)?;
+        sent += cnt;
+        */
+
+        
+        /* send the packets using IO uring */
+        let cnt = u64::min((now - start_time) / interval_ns - sent, 20_000);
+        ior.sent_eth_pkts(sent, cnt as usize)?;
+        sent += cnt;
+        
+        
 
         // sleeping shorter time durations than about 60us does not make sense
         // https://stackoverflow.com/questions/4986818/how-to-sleep-for-a-few-microseconds/71757858#71757858
         const SLEEP_THRESHOLD: Duration = Duration::from_micros(60);
-        let dur = Duration::from_nanos((sent * interval_ns + start_time) - now);
-        if dur > SLEEP_THRESHOLD {
-            sleep(dur);
-        } else {
-            // busy wait
+        if sent * interval_ns + start_time >= now { // check that we are ahead of schedule, otherwise no delay
+            let dur = Duration::from_nanos((sent * interval_ns + start_time) - now);
+            if dur > SLEEP_THRESHOLD {
+                sleep(dur);
+            } else {
+                // busy wait
+            }
+        }
+        
+        let now = clock_ns()?;
+        if (now - start_time) / 5_000_000_000 == stat_count {
+            stat_count += 1;
+            let freq = (sent as f64) / (((now - start_time) as f64) / 1_000_000_000f64);
+            info!("Sent {} packets so far, average {} pkt/s", sent, freq);
         }
 
         // termination condition
@@ -85,7 +116,10 @@ pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
 }
 
 fn calculate_sending_interval_ns(args: &PacketFloodArgs) -> anyhow::Result<u64> {
-    if let Some(cnt) = args.count {
+    if args.nolimit {
+        info!("Blasting packets as fast as possible!");
+        Ok(1)
+    } else if let Some(cnt) = args.count {
         info!(
             "Targeting flow table with {} flow rules, assuming {:?} rule timeout.",
             cnt,

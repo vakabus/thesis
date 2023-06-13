@@ -244,7 +244,7 @@ def main():
     # Dump out all events
     #
     print("- Capturing events [Press ^C to stop]...")
-    subprocess.check_call(["ovs-dpctl","del-flows"])  # makes sure there are no flows we don't know about
+    #subprocess.check_call(["ovs-dpctl","del-flows"])  # makes sure there are no flows we don't know about
     if options.signal_ready:
          os.kill(os.getppid(), signal.SIGUSR1)
          

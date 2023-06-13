@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crate::utils::{
     dump_file, external_prog::{run_external_program_async}, ovs::OvsDpctlCollector,
-    results_uploader::ResultHandler, vswitchd_monitor::SystemStatCollector, wait_for_signal, wait_for_signal_or_timeout,
+    results_uploader::ResultHandler, vswitchd_monitor::SystemStatCollector, wait_for_signal, wait_for_signal_or_timeout, loadavg::LoadavgCollector,
 };
 
 #[derive(Parser, Debug)]
@@ -35,6 +35,7 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
     let filename_perf = dump_file("ovs-vswitchd", "perf.tar.bz2");
     let filename_usdt = dump_file("ovs-vswitchd-usdt", "csv");
     let filename_offcputime = dump_file("offcputime", "log");
+    let filename_loadavg = dump_file("loadavg", "csv");
 
     /* start kernel tracing logging */
     let tracer_args = if args.only_upcalls {
@@ -45,6 +46,8 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
             &filename_log,
             "--signal-ready",
             "--no-cmd",
+            "--buffer-page-count",
+            "10240",
         ]
     } else {
         vec!["-w", &filename_trace, "-l", &filename_log, "--signal-ready"]
@@ -71,6 +74,8 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
     let system_stats =
         SystemStatCollector::create(filename_system.clone(), Duration::from_millis(100));
 
+    let loadavg = LoadavgCollector::create(filename_loadavg.clone(), Duration::from_millis(100));
+
     /* ovs-dpctl stats */
     let ovs_dpctl_stats =
         OvsDpctlCollector::create(filename_dumps.clone(), Duration::from_millis(100));
@@ -90,6 +95,8 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
     _ = ovs_dpctl_stats.stop().inspect_err(|e| warn!("collector failed: {}", e));
     info!("stopping system stats");
     _ = system_stats.stop().inspect_err(|e| warn!("collector failed: {}", e));
+    info!("stopping loadavg collector");
+    _ = loadavg.stop().inspect_err(|e| warn!("loadavg collector failed: {}", e));
     info!("stopping kernel tracer");
     _ = kernel_tracer.stop().inspect_err(|e| warn!("collector failed: {}", e));
     info!("stopping usdt tracer");
@@ -108,6 +115,7 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
     handler.handle_result(Path::new(&filename_perf));
     handler.handle_result(Path::new(&filename_usdt));
     handler.handle_result(Path::new(&filename_offcputime));
+    handler.handle_result(Path::new(&filename_loadavg));
 
     Ok(())
 }
