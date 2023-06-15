@@ -21,17 +21,17 @@
 
 % adapted from the thesis assignment
 
-Modern containerized cloud computing systems have complex requirements for their networking backends. Demand for features like seamless cross-data-center networking, multi-tenancy and security policies necessitated use of the Software Defined Networking (SDN) concept and, by the nature of containerized systems, extensive use of virtualized networks.
+Modern containerized cloud computing systems have complex requirements for their networking backends. Demand for features like seamless cross-data-center networking, multi-tenancy and security policies necessitated the use of the Software Defined Networking (SDN) concept and, by the nature of containerized systems, extensive use of virtualized networks.
 
-The current shift to microservices and the resulting increase of endpoints and need of rapid reconfiguration put emphasis on the SDN control plane performance and scalability.
+The current shift to microservices and the resulting increase of endpoints and the need for rapid reconfiguration emphasized the SDN control plane performance and scalability.
 
-A commonly deployed solution is Kubernetes for container orchestration and Open vSwitch for the virtualized SDN, used either directly or indirectly. However, it remains a question how well these solutions are adapted to the networking needs of microservices.
+A commonly deployed solution is Kubernetes for container orchestration and Open vSwitch for the virtualized SDN, used either directly or indirectly. However, it remains a question of how well these solutions are adapted to the networking needs of microservices.
 
-This work explores the performance and scalability characteristics of Open vSwitch (OVS) based Kubernetes clusters and is focused on investigating performance in pathological scenarios. While our experimental Kubernetes clusters were configured with \xxx{OVN-Kubernetes} networking plugin, our findings should be transferrable to any other SDN installation using Open vSwitch.
+This work explores the performance and scalability characteristics of Open vSwitch (OVS) based Kubernetes clusters and is focused on investigating performance in pathological scenarios. While our experimental Kubernetes clusters were configured with the OVN-Kubernetes networking plugin, our findings should be transferrable to any other SDN installation using Open vSwitch.
 
-We first explored methods for stressing the OVS's control plane and discovered at least one problematic type of packets. We measured OVS's behaviour under stress and learnt that in certain configurations, an attacker can use the discovered inefficiencies for a denial of service attack. We then tried to find all possible related attacks and their evaluated options of preventing them. \todo{Can we attack multiple nodes from a single cluster?}
+We explored methods for stressing the OVS's control plane and discovered several problematic traffic patterns. We measured OVS's behavior under stress and learned that in certain configurations, an attacker can use the discovered inefficiencies for an effective denial of service attack on the local cluster node.
 
-This thesis is divided into several chapters. In the first chapter, we provide descriptions of all relevant technologies, how they interact and how they work internally. The second chapter describes our experimental clusters and the limitations of our measurements. The third chapter describes our experiments and their findings. In the fourth chapter evaluates our findings and the last, fifth chapter suggests improvements. \todo{fix chapter descriptions after finishing them}
+This thesis is divided into several chapters. In the first chapter, we provide descriptions of all relevant technologies, how they interact and how they work internally. The second chapter describes the configuration of our experimental clusters to allow anyone to replicate our findings. We describe our experiments and their results in chapter three. The fourth chapter is about our additional discoveries, and the last, fifth, chapter discusses the big picture of our findings. \todo{fix chapter descriptions at the end}
 
 
 

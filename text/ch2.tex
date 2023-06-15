@@ -1,27 +1,25 @@
-\chapter{Experiment design}
+\chapter{Experimental environment}
 \label{chap:env}
 
-As we showed in the previous chapter, OVS inserts flow rules into datapaths on demand after upcalls. Therefore, some packets require much more processing and can slow the system down. Eelco Chaudron investigated the cost of an upcall in OVS\todo{link source} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow-path can take anywhere between \qty{700}{\us} and \qty{10}{\ms} extra compared to the fast-path.
+This chapter describes the environment we used for running our experiments. The information provided here should allow anyone to replicate our measurements.
 
-Based on this knowledge, we tried to answer the following questions about OVS internals:
+\section{Hardware}
+\label{sec:hw-env}
 
-\begin{itemize}
-    \item When are flow rules removed from the datapaths? (\cref{design:flow-eviction})
-    \item What is the cost of an upcall when measured from the user-space? (\cref{design:upcall-cost})
-    \item Which packets generate upcalls? (\cref{design:upcall-generators})
-    \item What is the impact of artificial upcall-only traffic on the performance of the whole system? (\cref{design:upcall-impact})
-\end{itemize}
+For our research, we used two experimental cluster with different hardware configurations. One installation run virtualized on Proxmox VE with only a single physical host. The other installation used dedicated hardware. When we write about an experiment and do not specify where it runs, we are presenting results from the cluster on dedicated hardware. However, most of the measurements can be replicated in a virtualized environment without a significant impact on the outcome.
 
-The following sections first discuss the hardware and software environment we used for our experiments. The sections after that describe our methods to answer the questions. The next chapter will discuss our results.
+\paragraph{Virtualized installation}
+We used the virtualized environment for development and debugging. The physical host was running Proxmox VE 7.4-3, and it was configured with an Intel\textsuperscript{\textregistered} Core\textsuperscript{TM} i7-3770 CPU running at 3.40 GHz with $4$ cores, $8$ threads, and $31.23$ GiB of RAM.
 
+The virtual machines used for the cluster nodes were each configured with $4$ virtual cores and $4$ GiB of RAM. We had initially started experimenting with $2$ CPU cores per node to prevent overprovisioning, but our workloads always fully stressed only one node (always \kb{2}), and we were mostly interested in system behavior with multiple threads. The overprovisioning did not seem to cause any problems.
 
-% quote https://developers.redhat.com/articles/2022/02/07/investigating-cost-open-vswitch-upcalls-linux
+The cluster nodes were equipped with $2$ virtual network interfaces connected to two virtual Linux bridges on the host. We used one interface for system management and WAN access. Tthe other bridge was used for cluster interconnect. We did not artificially limit the throughput or latency of the link between nodes. When measured between \kb{2} and \kb{3} using \ident{iperf3} with the default configuration and \ident{ping} with $100$ samples, the throughput was $14.5$ Gbps and the average round trip time $0.383$ ms.
 
-\section{Initial assumptions and experiments}
-\label{sec:init-assum}
+\paragraph{Dedicated hardware}
 
-Flow rules in OVS are created by upcalls (see \cref{sec:ovs-internals}). 
+We used the cluster with dedicated hardware to validate the results observed in the virtual environment. The nodes were Dell PowerEdge R730 servers, configured with Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} CPU E5-2690 v4 running at 2.60GHz with $14$ cores, $28$ threads, and $131$ GB of RAM.
 
+Similar to the virtualized nodes, the dedicated nodes had 2 network interfaces. One management 1 GbE interface was connected to the Internet, and another cluster only 10 GbE interface was connected to a switch. We configured the switch to use VLANs to isolate the cluster traffic from all other ports. While we did not have the opportunity to use a fully dedicated switch, the switch should have had enough capacity that it would not be a bottleneck. The average round trip time between \kb{2} and \kb{3} (\ident{ping -c 100}) was $0.104$ ms.
 
 \section{Software environment}
 \label{sec:sw-env}
@@ -30,73 +28,27 @@ We run our experiments and measurements on a Kubernetes cluster with OVN-Kuberne
 
 In our experiments, we always used a three-node cluster with one node dedicated as a control node. We didn't test cluster installations configured for high availability (HA). We focused on the internals of OVS, a part of low-level networking infrastructure. We do not expect any significant difference between HA and non-HA clusters.
 
-We named our cluster nodes \kb{1}, \kb{2}, and \kb{3}. The node \kb{1} is always the control node.
+We named our cluster nodes \kb{1}, \kb{2}, and \kb{3}. The node \kb{1} is always the control node, our experiments always run on \kb{2}.
 
-\section{Hardware environment}
-\label{sec:hw-env}
+\subsection{Kubernetes configuration}
 
-We installed the experimental cluster in two different hardware configurations. One installation run virtualized on Proxmox VE. The other installation used dedicated hardware. When we write about an experiment and do not specify where it runs, we are presenting results from the cluster on dedicated hardware.
+We always deployed three different pods to the Kubernetes cluster. The spec files are attached to this work. The pods were:
 
-\paragraph{Virtualized installation}
-We used the virtualized environment for development and debugging. The physical host was running Proxmox VE 7.4-3, and it was configured with an Intel\textsuperscript{\textregistered} Core\textsuperscript{TM} i7-3770 CPU running at 3.40 GHz with $4$ cores, $8$ threads, and $31.23$ GiB of RAM.
+\begin{itemize}
+    \item \ident{arch} on \kb{2} -- a pod running the latest Arch Linux Docker image. We used this pod for the main part of our experiments.
 
-The virtual machines used for the cluster nodes were each configured with $4$ virtual cores and $4$ GiB of RAM. We had initially started experimenting with $2$ cores per node to prevent overprovisioning, but our workloads always fully stressed only one node (always \kb{2}), and we were mostly interested in system behavior with multiple threads.
+    \item \ident{victim} on \kb{2} -- again, a pod with the latest Arch Linux image. We used it to measure the impact of our experiments on pods sharing the same node.
 
-The cluster nodes were equipped with $2$ virtual network interfaces connected to two Linux bridges on the host. We used one interface for system management and the other for cluster interconnect. We did not artificially limit the throughput or latency of the link between nodes. When measured between \kb{2} and \kb{3} using \ident{iperf3} with the default configuration and \ident{ping} with $100$ samples, the throughput was $14.5$ Gbps and the average round trip time $0.383$ ms.
+    \item \ident{reflector} on \kb{3} -- a privileged Arch Linux container with a custom raw-socket-based packet reflector and \ident{iptables} rule preventing the kernel from sending ICMP connection refused packets. The reflector swapped the Ethernet and IP addresses in the received packets and sent them out again.
+\end{itemize}
 
-\paragraph{Dedicated hardware}
+\subsection{Experiment implementation}
 
-We used the cluster with dedicated hardware to validate the results observed in the virtual environment. The nodes were Dell PowerEdge R730 servers, configured with Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} CPU E5-2690 v4 running at 2.60GHz with $14$ cores, $28$ threads, and $131$ GB of RAM.
+We developed our experiments mainly in Rust. Everything is contained within one project in a tool we call the \ident{analyzer}. In the few cases when Rust was not the best language for the task, we embedded scripts in other languages (mainly Bash and Python) in the Rust executable itself. Our Rust code always provides an entry point.
 
-Similar to the virtualized nodes, the dedicated nodes had 2 network interfaces. One management 1 GbE interface was connected to the Internet, and another cluster only 10 GbE interface was connected to a switch. We configured the switch to use VLANs to isolate the cluster traffic from all other ports.
+The main reasoning behind the language and architecture choice was personal preferences and ease of distribution -- the ability to create a single statically-linked executable that would work almost anywhere.
 
+\subsection{Clock synchronization}
 
-\section{Removal of flow rules from datapaths}
-\label{design:flow-eviction}
+All our experiments use Linux's \ident{CLOCK\_MONOTONIC} clock for timekeeping. Because we measure everything on a single node, \kb{2}, the clock is perfectly consistent across different containers. There could be small discrepancies due to synchronization between CPU cores and scheduling, but we are mostly concerned about larger time scales so we assume these discrepancies will not affect our results.
 
-We can observe an effect of a upcall using the \ident{ping} tool. The first packet has higher latency than the rest of the ICMP packets.
-
-\vspace{0.5cm}
-
-\begin{lstlisting}[caption=Output of the \ident{ping} command in the virtualized environment, captionpos=b, basicstyle=\ttfamily\scriptsize]
-[root@kb2 ~]# ping -c 5 kb3
-PING kb3 (192.168.1.223) 56(84) bytes of data.
-64 bytes from kb3 (192.168.1.223): icmp_seq=1 ttl=64 time=1.19 ms
-64 bytes from kb3 (192.168.1.223): icmp_seq=2 ttl=64 time=0.404 ms
-64 bytes from kb3 (192.168.1.223): icmp_seq=3 ttl=64 time=0.365 ms
-64 bytes from kb3 (192.168.1.223): icmp_seq=4 ttl=64 time=0.424 ms
-64 bytes from kb3 (192.168.1.223): icmp_seq=5 ttl=64 time=0.304 ms
-
---- kb3 ping statistics ---
-5 packets transmitted, 5 received, 0% packet loss, time 4062ms
-rtt min/avg/max/mdev = 0.304/0.536/1.185/0.326 ms
-\end{lstlisting}
-
-The first packet delay is absent when we run the \ident{ping} command for the second time shortly after the first. The higher latency is visible again. This behavior can be explained by a flow rule eviction timeout that removes the rule from the datapath's forwarding table.
-
-Assuming the timeout stays constant, we can measure it by varying the interval between ICMP packets. The dependency between the measured latency and the time delay should be constant except for one sharp increase in latency when the delays get longer than the timeout.
-
-The implementation details of this experiment and our results can be found in \cref{res:eviction-timeout}.
-\todo{shouldn't the implementation details be only here?}
-
-\section{Cost of an upcall}
-\label{design:upcall-cost}
-
-We can also use the experiment devised in the previous section to measure the cost of an upcall and reproduce Eelco Chaudron's research with a different method. While this measurement methodology leads to less precise results than when directly measuring the in-kernel execution time using eBPF, we can use it to measure the upcall cost without special privileges on publicly deployed cloud hosting services.\todo{má smysl tohle zmiňovat, když to nezkusím? Napsal jsem pár provozovatelům, jestli náhodou neprovozují OVS a uvidíme}
-
-Our results can be found in \cref{res:upcall-cost}.
-
-\section{Packets generating upcalls}
-\label{design:upcall-generators}
-
-To stress-test the slow path, we have to be able to generate upcalls consistently. We have to find types of packets that will repeatedly miss all installed flow rules in the OVS datapath. We did a dynamic analysis and designed an experiment where we sent varying packets and monitored the upcalls and flow table changes. The flow rules in OVS datapaths use the \ident{sw\_flow\_key}\todo{link} structure to represent the flow key. For every field of that structure, our measurement tool sends 1000 packets with the corresponding packet header field randomized and everything else fixed at arbitrary values.
-
-We decided on dynamic analysis instead of static analysis because the results depend on OVS, the whole SDN, and its configuration. We might be able to draw some general conclusions from the measurement results and look into the source code for additional insights. However, we are not sure we have found all packet types causing this. Additionally, our results only describe the behavior with Kubernetes, OVN-Kubernetes, and OVN (see \cref{sec:sw-env}).
-
-...\todo{Dát sem zmínku o tom, že jsme už něco čekali kvůli macofu?}
-
-\section{Impact of upcall-only traffic}
-\label{design:upcall-impact}
-
-
-Using the knowledge from the previous experiment, we wrote a tool for sending packets stressing the OVS's datapath. We then measured resource utilization and an impact on latency for different containers on the same Kubernetes node.

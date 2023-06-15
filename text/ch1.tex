@@ -3,22 +3,26 @@
 
 \section{Glossary}
 
-\paragraph{SDN} Software-defined network. Additional details can be found in \xxx{\cref{TODO}}.
+\begin{tabular}{p{0.22\linewidth}p{0.7\linewidth}}
+    SDN & Software-defined networking. Additional details can be found in \cref{sec:sdn}. \\ % <--
 
-\paragraph{OVS} Open vSwitch\footnote{\url{https://www.openvswitch.org/}}
+    OVS & Open vSwitch (\url{https://www.openvswitch.org/}). Details in \cref{sec:ovs}. \\ % <--
 
-\paragraph{OVN} Open Virtual Network\footnote{\url{https://docs.ovn.org/en/latest/}}
+    OVN & Open Virtual Network (\url{https://docs.ovn.org/en/latest/}). Details in \cref{sec:ovn}. \\ % <--
 
-\paragraph{CNI} Container network interface\footnote{\url{https://github.com/containernetworking/cni/blob/dc0779e8cec8bfe39bc0d7a038250e233e5214eb/SPEC.md}}. Specification for writing plugins configuring network interfaces in Linux container, best known by usage in Kubernetes.
+    CNI & Container network interface\tablefootnote{\url{https://github.com/containernetworking/cni/blob/dc0779e8cec8bfe39bc0d7a038250e233e5214eb/SPEC.md}}. Specification for writing networking plugins for Kubernetes. The plugin handles assigning IP addresses and routing packets across the cluster. Details in \\
 
-\paragraph{OVN-Kubernetes} CNI plugin using OVN.
+    OVN-Kubernetes & CNI plugin using OVN. \\
 
-\paragraph{Forwarding table} Network switches use forwarding tables to decide where to forward a received packet. In Ethernet, the forwarding tables consist of MAC address to network port mapping. SDNs generalized forwarding tables so that they can match packets in any way deemed useful, most commonly on any header values from the second, third, and fourth layers of the OSI model.\todo{quote \url{https://www.iso.org/standard/20269.html}}
+    Forwarding tables & Network switches use forwarding tables to decide where to forward a received packet. In Ethernet, the forwarding tables consist of MAC address to network port mapping. SDNs generalized forwarding tables so that they can match packets in any way deemed useful, most commonly on any header values from the second, third, and fourth layers of the OSI model. \\
 
-\paragraph{OpenFlow} Network configuration protocol used between an SDN controller and SDN switches. OpenFlow allows remote configuration of forwarding tables in network switches.
+    OpenFlow & Network configuration protocol used between an SDN controller and SDN switches. OpenFlow allows remote configuration of forwarding tables in network switches. Details in \cref{sec:openflow}
 
+\end{tabular}
 
 \section{Software-defined networking (SDN)}
+\label{sec:sdn}
+
 \todo{make a proper quotation for the schema in \cref{fig:sdn-schema} \url{https://opennetworking.org/wp-content/uploads/2013/02/TR_SDN_ARCH_1.0_06062014.pdf}}
 
 \begin{figure}
@@ -30,43 +34,34 @@
 
 \emph{Software-defined networking} is a loosely defined concept of separating the networking data plane (infrastructure layer) and the control plane (control layer) into separate components. In traditional networking architectures, each network device makes forwarding and/or routing decisions fully autonomously. SDNs separate the decision-making and data processing into distinct layers (see \cref{fig:sdn-schema}) and define two main interfaces. \emph{SDN applications} provide the \emph{SDN controller} with networking requirements using the \emph{northbound interface}. The controller then configures the actual network equipment using the \emph{southbound interface}.
 
-\emph{OpenFlow}\footnote{\url{https://opennetworking.org/sdn-resources/openflow-switch-specification/}} is a de-facto standard protocol for the southbound interface. \emph{Container network interface (CNI)} is a specification for the northbound interface in Kubernetes and other container orchestrators.
-
 \section{OpenFlow}
+\label{sec:openflow}
 
-\todo{add a proper example to the table}
+\emph{OpenFlow}\footnote{\url{https://opennetworking.org/sdn-resources/openflow-switch-specification/}} is a protocol for configuring packet forwarders (generalized switches). OpenFlow is the de-facto standard protocol for the southbound interface in an SDN.
 
-\emph{OpenFlow} is a protocol for configuring packet forwarders (generalized switches). The forwarding tables (see \cref{tab:openflow-forwarding-table}) in the network switches are filled with rules provided by the OpenFlow controller. The flow rules consist of two parts:
+In OpenFlow, there are multiple forwarding tables for every network switch. Every table is identified with a number and contains a set of rules with priorities. Each rule consists of matching criteria, usage statistics and actions. The following is an example of an OpenFlow rule dumped from a running Open vSwitch using the \ident{ovs-ofctl dump-flows \$BRIDGE} command:
 
-\begin{itemize}
-    \item \emph{Packet matching criteria} which can include value masks for not only Ethernet header values, but also IP, transport layer protocols (TCP, UDP, ...), and more depending on the version of the OpenFlow protocol. 
-    \item The action instructing the switch on what to do with the matching packets. Possible actions include dropping packets, modifying header fields, forwarding to physical or virtual ports, sending to the controller, and more.
-\end{itemize}
+\begin{verbatim}
+cookie=0x802cec73, duration=22932.301s, table=33, n_packets=0,
+n_bytes=0, priority=75,
+arp,metadata=0x7,dl_src=24:6e:96:3c:4c:5c,arp_op=1
+actions=load:0x8004->NXM_NX_REG15[],resubmit(,37)
+\end{verbatim}
+
+The third line in the example specifies the rule criteria. Generally, the matching criteria can include masks for header values from Ethernet, IP, transport layer protocols (TCP, UDP, ...), and more depending on the exact version of the OpenFlow protocol. The criteria can check for an exact value match or with a wildcard.
+
+The action in a flow rule can forward the packet to a port, change a value of a header field, store an arbitrary value as metadata accompanying the packet in further processing, resubmit the packet to a different table and more. For the complete list of actions, see the OpenFlow specification \todo{quote}.
 
 In addition to the externally configured flow rules, the forwarding tables also contain statistics updated every time the flow rule is used. The OpenFlow controller can then query switches for these statistics.
 
-\begin{table}[]
-    \begin{center}
-        \caption{Schema of an OpenFlow forwarding table}
-        \label{tab:openflow-forwarding-table}
-        \begin{tabular}{c|c|c}
-            \textbf{Matching criteria} & \textbf{Action} & \textbf{Statistics} \\
-            \hline
-            \xxx{add example} & 1110.1 & a\\ % <--
-            2 & 10.1 & b\\ % <--
-            3 & 23.113231 & c\\ % <--
-        \end{tabular}
-    \end{center}
-\end{table}
-
-
 \section{Open vSwitch}
+\label{sec:ovs}
 
 \emph{Open vSwitch} (OVS) is a multilayer virtual switch. OVS runs as a software switch on all major platforms and supports hardware offload for its data processing layers. The supported OpenFlow protocol allows any SDNs to use OVS in its infrastructure layer.
 
-The internal architecture of OVS mirrors the SDN architecture (see \cref{fig:ovs-arch-schema}\todo{redraw the image or quote it properly}). \ident{ovs-vswitchd} (or just \ident{vswitchd}) is the OVS's control process. \ident{vswitchd} communicates via the OpenFlow protocol and stores the configured flow rules in a purpose-built Open vSwitch Database (OVSDB). Alternatively, the database can be accessed externally, and OVS can be configured without using the OpenFlow wire protocol.
+The internal architecture of OVS mirrors the SDN architecture (see \cref{fig:ovs-arch-schema}) with a controller plane and data plane. \ident{ovs-vswitchd} is the OVS's control process. \ident{ovs-vswitchd} communicates via the OpenFlow protocol and stores the configured flow rules in a purpose-built Open vSwitch Database (OVSDB). Alternatively, the database can be accessed externally, and OVS can be configured without using the OpenFlow wire protocol.
 
-A \emph{datapath} is the lowest component of OVS physically forwarding packets between configured ports. There are multiple datapath implementations, some of them implemented fully in the \ident{vswitchd} process, some of them using extra kernel modules for improved performance. \ident{vswitchd} translates the OpenFlow flow rules into a more efficient and simplified form. These simplified flow rules are then used by the datapaths to make forwarding decisions.
+A \emph{datapath} is the lowest component of OVS physically forwarding packets between configured ports, it is OVS's data layer. There are multiple datapath implementations, some of them implemented fully in the \ident{ovs-vswitchd} process, some of them using extra kernel modules for improved performance. \ident{ovs-vswitchd} translates the OpenFlow flow rules into a more efficient and simplified form. These simplified flow rules are then used by the datapaths to make forwarding decisions. We discuss datapath internals in more detail in \cref{sec:ovs-datapath}.
 
 \begin{table}[h!]
     \begin{center}
@@ -75,10 +70,9 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
         \begin{tabular}{p{0.2\linewidth}|p{0.7\linewidth}}
             \textbf{Component} & \textbf{Description} \\
             \hline
-            % FIXME this footnote might be on a wrong page :(
-            \ident{ovsdb}\tablefootnote{\url{https://docs.openvswitch.org/en/latest/ref/ovsdb.7/}} & OVSDB instance storing the OpenFlow flow rules \\
+            \ident{ovsdb} & OVSDB instance storing the OpenFlow flow rules \\
             \hline
-            \ident{ovs-vswitchd}\tablefootnote{\url{http://www.openvswitch.org/support/dist-docs/ovs-vswitchd.8.html}} & a process managing datapaths and providing OpenFlow configuration interface \\
+            \ident{ovs-vswitchd} & a process managing datapaths and providing OpenFlow configuration interface \\
             \hline
             datapath & a logical component in \ident{ovs-vswitchd}, does the actual packet forwarding \\
         \end{tabular}
@@ -86,7 +80,11 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
 \end{table}
 
 
+% \tablefootnote{\url{https://docs.openvswitch.org/en/latest/ref/ovsdb.7/}}
+% \tablefootnote{\url{http://www.openvswitch.org/support/dist-docs/ovs-vswitchd.8.html}}
+
 \section{Open Virtual Network}
+\label{sec:ovn}
 
 \todo{link to documentation \url{https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/13/html/networking_with_open_virtual_network/open_virtual_network_ovn}}
 
@@ -113,11 +111,10 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
 
 \section{OVN-Kubernetes}
 
-\emph{OVN-Kubernetes}\footnote{\url{https://github.com/ovn-org/ovn-kubernetes}} is a Kubernetes CNI plugin using OVN in the background. \todo{Expand with information about internal architecture.}
+\emph{OVN-Kubernetes}\footnote{\url{https://github.com/ovn-org/ovn-kubernetes}} is a Kubernetes CNI plugin using OVN in the background. OVN-Kubernetes configures OVN and OVS on all cluster nodes and translates network reconfiguration requests from the CNI API into a configuration changes for OVN.
 
-\section{Open vSwitch Datapath Internals}
-\label{sec:ovs-internals}
-\todo{This whole section is not adapted to the thesis yet. It is just copy-pasted from my website.}
+\section{Open vSwitch Datapaths}
+\label{sec:ovs-datapath}
 
 \begin{figure}
     \centering
@@ -126,17 +123,35 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
     \label{fig:ovs-arch-schema}
 \end{figure}
 
-\ident{ovs-vswitchd} processes packets in \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.h}{datapaths}, which is essentially \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L107-L117}{an interface} hiding the implementation details of low-level packet processing. The datapath does not do any decisions by itself, it's the clients of the datapath that tell it what to do by giving it simple rules to follow. In the upstream code, there are two datapath implementations - \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netdev.c}{\ident{netdev}} and \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c}{\ident{netlink}}.
+OVS processes packets in \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.h}{datapaths}. All datapaths implement a common \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L107-L117}{interface} hiding the implementation details of low-level packet processing from the layers above.
 
-The \ident{netdev} datapath is implemented entirely in user space, and it's multiplatform. All major operating systems are currently supported. As it's userspace only, it's less performant than the \ident{netlink} datapath and we will ignore it for the rest of this article. The \ident{netlink} datapath is Linux-specific. It resides partially in a kernel module and partially in user space. The kernel module does most of the packet processing. The userspace communicates with the kernel over a netlink socket, exchanging commands and packets. Most packets never touch the user space and are processed only in the kernel. We call this the fast-path. The alternative is the slow-path, a path through user space, which is taken every time the fast-path fails.
+The two most commonly used datapath implementations are \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netdev.c}{\ident{netdev}} and \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c}{\ident{netlink}}.
 
+\paragraph{The \ident{netdev} datapath}
+The \ident{netdev} datapath is implemented entirely in user space, and it is multiplatform. All major operating systems are currently supported. As it is userspace only, every packet has to be passed from kernel to userspace and back, making it less performant than the \ident{netlink} datapath and not commonly used in Linux for production deployments. Due to this, our research does not target the \ident{netdev} datapath.
 
-\subsection{Overview of the kernel and user space interactions}
-\label{overview-of-the-kernel-and-user-space-interactions}
+\paragraph{The \ident{netlink} datapath}
+The \ident{netlink} datapath is Linux-specific. It resides partially in a kernel module and partially in user space. The kernel module does most of the packet processing. The userspace communicates with the kernel over a netlink socket, exchanging commands and packets. Most packets never touch the user space and are processed only in the kernel. We call this the fast path. The alternative is the slow path, where the packet passes through user space. The slow path is taken every time the fast path fails.
 
-The fast-path involves matching incoming packet against a set of flow rules stored in the kernel. The rules contain actions -- instructions describing what to do next with the packet. If any of the flow rules matches, the kernel blindly executes the action. In this case, no buffering is involved, the packets are processed immediately.
+Our research is focused on the \ident{netlink} datapath as it is most commonly deployed. Unless stated otherwise, the rest of the thesis always assumes the context of the \ident{netlink} datapath.
 
-The slow-path gets involved when the fast-path fails (no flow rule match) or when the action in the flow rule asks for it. In it, the packet is passed to the user-space via a netlink socket (we call this an upcall). An user-space process receives the packet, processes it according to its configuration and reinjects it back into the kernel. Additionally, a new flow rule can be installed into the kernel to speed up future processing of similar packets. The slow-path buffers packets when they are passed from kernel to user-space.
+\subsection{Interactions between the fast path and the slow path}
+
+Packets always start their journey in the kernel. They enter the \ident{openvswitch} module where they are checked against a set of flow rules stored in the flow table (OVS's forwarding table). If a flow rule matches the packet, its actions are executed. Otherwise, the packet is sent to the user space.
+
+ \begin{verbatim}
+def process_packet_in_kernel(packet):
+    for flow_rule in flow_table:
+        if flow_rule criteria match the packet:
+            execute the flow_rule actions
+            return
+    
+    make an upcall to the user space
+ \end{verbatim}
+
+The slow path gets involved when the fast path fails (no flow rule match) or when the action in the flow rule explicitly asks for it. The packet is sent to the user space via a netlink socket. We call this an upcall. \ident{ovs-vswitchd} receives the packet, processes it according to the OpenFlow rules and reinjects it back into the kernel. Additionally, a new flow rule might be generated and installed into the kernel to speed up the future processing of similar packets.
+
+The packets in the fast path are not buffered and they are processed immediately. The slow-path buffers packets when they are passed from kernel to user space, introducing additional latency.
 
 \subsection{The fast-path}
 \label{the-fast-path}
@@ -144,25 +159,30 @@ The slow-path gets involved when the fast-path fails (no flow rule match) or whe
 \subsubsection{The data structures}
 \label{the-data-structures}
 
-The flow table (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow_table.h\#L62}{\ident{struct\ flow\_table}}) is an in-kernel data structure, which stores flows rules (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L221}{\ident{struct\ sw\_flow}}) and allows for fast matching with individual packets. Every flow also contains a list of actions (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L206}{\ident{struct\ sw\_flow\_actions}}).
+The flow table (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow_table.h\#L62}{\ident{struct\ flow\_table}}) is an in-kernel data structure, which stores flows rules (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L221}{\ident{struct\ sw\_flow}}) and allows for fast matching with individual packets. Similar to OpenFlow flow rules, every datapath flow contains a list of actions (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L206}{\ident{struct\ sw\_flow\_actions}}), statistics (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L213}{\ident{struct sw\_flow\_stats}}), a flow key (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L75}{\ident{struct\ sw\_flow\_key}}) and a flow mask (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L183}{\ident{struct\ sw\_flow\_mask}}).
 
-Every flow has a flow key (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L75}{\ident{struct\ sw\_flow\_key}}) and a bitmask (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.h\#L183}{\ident{struct\ sw\_flow\_mask}}). The combination of both of these enables the packet matching. The key is a complex structure with parsed out packet header values. It can be created from any Ethernet frame (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.c\#L886}{\ident{key\_extract}}). The mask then tells us which bits between the extracted packet key and the flow key must match.
+The flow key and the flow mask are the matching criteria. The combination of both of these enables fast matching with the possibility of wildcards. The key is a complex structure with parsed-out packet header values. It can be created from any packet with the function \href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/flow.c\#L886}{\ident{key\_extract()}}. The mask specifies which bits are significant when comparing two keys.
+
+\begin{verbatim}
+def equals(key1, key2, mask) -> bool:
+    return (key1 & mask) == (key2 & mask)
+\end{verbatim}
 
 
 \subsubsection{The matching algorithm}
 \label{the-matching-algorithm}
 
-When processing a packet, we create the corresponding flow key and look for matching flows in the flow table. The packet can match any number of flows, but we always use the first one we find. The userspace component is made responsible for preventing overlapping conflicting flow rules.
+When the kernel processes a packet, it creates the packet's corresponding flow key and looks for matching flows in the flow table. The packet can match any number of flows, but we always use the first one we find. The userspace component is made responsible for preventing overlapping conflicting flow rules.
 
-The flow table stores the flow in a hash table, where the key is the masked \ident{sw\_flow\_key}. Therefore, to find a flow for a packet, we must try several masks. The lookup procedure could look like this:
+The flow table stores the flows in a hash table. The lookup key is the masked \ident{sw\_flow\_key}. Therefore, to find a flow for a packet, the kernel has to try several masks. The lookup procedure could look like this:
 
 \begin{verbatim}
-    def lookup(flow_table, key):
-        for mask in flow_table.mask_array:
-            masked_key = apply mask to key
-            if masked_key in flow_table.flows:
-                return flow_table.flows[masked_key]
-        return None
+def lookup(flow_table, key):
+    for mask in flow_table.mask_array:
+        masked_key = apply mask to key
+        if masked_key in flow_table.flows:
+            return flow_table.flows[masked_key]
+    return None
 \end{verbatim}
     
 
@@ -178,27 +198,32 @@ The real implementation (\href{https://elixir.bootlin.com/linux/v6.2.5/source/ne
   \href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/datapath.c\#L2536}{periodically}
   based on a time interval.
 \item
-  There is already a \ident{sk\_buff}
+  There is already a \ident{sk\_buff}\footnote{a kernel structure wrapping all packets}
   \href{https://elixir.bootlin.com/linux/v6.2.5/source/include/linux/skbuff.h\#L1537}{hash}
   based on source/destination addresses and ports. The lookup procedure
   makes use of the hash by having a fixed size
   (\href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/flow_table.c\#L41}{256})
   hash table storing references to their masks. The cached masks are
-  then tried first. If there is no match, standard lookup over all masks
+  then tried first. If there is no match, a standard lookup over all masks
   follows. This helps with burst performance.
 \end{enumerate}
 
 \subsection{The slow-path}
-\label{the-slow-path}
 
-The user space process (\href{https://www.man7.org/linux/man-pages/man8/ovs-vswitchd.8.html}{\ident{ovs-vswitchd}}) communicates with the kernel over netlink socket. When packet leaves the
-fast-path, it is temporarily buffered in a queue (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/datapath.c\#L311}{\ident{ovs\_dp\_upcall}}) when crossing the kernel boundary.
+The user space process (\href{https://www.man7.org/linux/man-pages/man8/ovs-vswitchd.8.html}{\ident{ovs-vswitchd}}) communicates with the kernel over a netlink socket. When a packet leaves the
+fast-path, it is temporarily buffered in a queue (\href{https://elixir.bootlin.com/linux/v6.2.6/source/net/openvswitch/datapath.c\#L311}{\ident{ovs\_dp\_upcall()}}) when crossing the kernel boundary.
 
-\ident{ovs-vswitchd} reads packets from the kernel in several threads. The datapath interface defines a \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L387-L408}{\ident{recv}} function for receiving a single packet from the kernel. The netlink datapath implements it with the function \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c\#L3132-L3134}{\ident{dpif\_netlink\_recv}}.
+\ident{ovs-vswitchd} reads packets from the kernel in several \emph{handler threads}. The datapath interface defines a \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L387-L408}{\ident{recv}} function for receiving a single packet from the kernel. The netlink datapath implements it with the \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c\#L3132-L3134}{\ident{dpif\_netlink\_recv()}} function.
 
-Higher up, the \ident{recv} datapath interface function is used in generic \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.c\#L1591-L1611}{\ident{dpif\_recv}} which also provides an useful tracepoint \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.c\#L1618}{\ident{dpif\_recv\_\_recv\_upcall}} for measurements. Even higher up the abstraction stack, the function \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L829-L830}{\ident{recv\_upcalls}} in the file \ident{ofproto-dpif-upcall.c} reads packets in batches, which are then processed by \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L1639-L1641}{\ident{handle\_upcalls}}. The \ident{handle\_upcalls} function essentially transforms the list of packets into a list of operations that should be executed on the datapath. This includes adding new flows to the datapath as well as simply sending packets where they belong.
+Higher up, the \ident{recv()} datapath interface function is used in generic \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.c\#L1591-L1611}{\ident{dpif\_recv()}} function which also provides an useful tracepoint \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.c\#L1618}{\ident{dpif\_recv\_\_recv\_upcall}} for measurements. Even higher up the abstraction stack, the function \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L829-L830}{\ident{recv\_upcalls()}} in the file \ident{ofproto-dpif-upcall.c} reads packets in batches, which are then processed by \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L1639-L1641}{\ident{handle\_upcalls()}}. The \ident{handle\_upcalls()} function essentially transforms the list of packets into a list of operations that should be executed on the datapath. This includes adding new flows to the datapath as well as simply sending packets where they belong.
 
-Parallel with upcall processing, OVS also runs several maintenance tasks. A \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L3312-L3336}{balancing task} makes sure, that when the system is under stress, the most used flow rules are in the kernel. \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L83-L111}{A revalidator task} periodically reads statistics from the kernel and most importantly, removes old unused flows.
+\subsection{Additional \ident{ovs-vswitchd} tasks}
+
+Parallel with upcall processing in the handler threads, OVS also runs several maintenance tasks:
+\begin{itemize}
+    \item A \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L3312-L3336}{balancing task} makes sure, that when the system is under stress, the most frequently used flow rules are in the kernel.
+    \item \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/ofproto/ofproto-dpif-upcall.c\#L83-L111}{The revalidator threads} periodically dump statistics from the kernel and remove old unused flows. The number of revalidator threads scales with the number of available cores on the system.
+\end{itemize}
 
 % TODO add sources
 %
