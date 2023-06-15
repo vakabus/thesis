@@ -39,28 +39,29 @@ setup-pods root='kb1':
 clean:
     poe --root cluster_tools run destroy --all
 
-experiment-packet-fuzz host_node pod_ip: deploy-analyzer && plot-last-packet-fuzz
+experiment-packet-fuzz nodes='.nodes.homelab': ( deploy-analyzer nodes ) && plot-last-packet-fuzz
     #!/bin/bash
-    
-    # upload binaries
-    poe --root cluster_tools run pod upload arch ../analyzer/target/release/analyzer /usr/bin/analyzer
 
+    # load config variables
+    . {{nodes}}
+    
     # prepare global experiment ID
     experiment_id="packet_fuzz_$(date --iso-8601=minutes)"
 
     # start accepting test results
-    cd analyzer/results
+    pushd analyzer/results
     mkdir $experiment_id
     gimmedat --port 10000 --listen-ip 0.0.0.0 --secret irrelevant --public-access $experiment_id &
-    cd ../..
+    echo "{{nodes}}" > "$experiment_id/nodes"
+    popd
 
     # run experiment
     tmux new -d -s thesis-packet-fuzz \; split-window -h \;
-    tmux send-keys -t thesis-packet-fuzz.1 "poe --root cluster_tools run pod ssh arch" ENTER
-    tmux send-keys -t thesis-packet-fuzz.0 "poe --root cluster_tools run ssh kb2" ENTER
+    tmux send-keys -t thesis-packet-fuzz.1 "poe --root cluster_tools run pod -m $NODE1 ssh arch" ENTER
+    tmux send-keys -t thesis-packet-fuzz.0 "poe --root cluster_tools run ssh $NODE2" ENTER
     sleep 4
-    tmux send-keys -t thesis-packet-fuzz.1 "analyzer install-dependencies; analyzer --push-results-url {{callback_url}} packet-fuzz" ENTER
-    tmux send-keys -t thesis-packet-fuzz.0 "sudo analyzer install-dependencies; sudo analyzer --push-results-url {{callback_url}} log-flow-stats --log-ip {{pod_ip}}" ENTER
+    tmux send-keys -t thesis-packet-fuzz.1 "analyzer install-dependencies; sleep 10; analyzer --push-results-url {{callback_url}} packet-fuzz" ENTER
+    tmux send-keys -t thesis-packet-fuzz.0 "sudo analyzer install-dependencies; sudo analyzer --push-results-url {{callback_url}} node-logger --only-upcalls" ENTER
     tmux attach -t thesis-packet-fuzz
     
     # stop accepting results
@@ -89,9 +90,9 @@ experiment-packet-flood count='20000' nodes='.nodes.homelab': ( deploy-analyzer 
 
     # run experiment
     tmux new -d -s thesis-packet-flood \; split-window -h \; split-window -v \;
-    tmux send-keys -t thesis-packet-flood.0 "poe --root cluster_tools run ssh $NODE2 -- sh -c \"\\\"sudo analyzer --push-results-url {{callback_url}} node-logger --only-upcalls --runtime-sec 85\\\"\" ; {{shell_exit}}" ENTER
-    tmux send-keys -t thesis-packet-flood.1 "poe --root cluster_tools run pod -m $NODE1 ssh victim -- sh -c \"\\\"analyzer --push-results-url {{callback_url}} victim --runtime-sec 85\\\"\" ; {{shell_exit}}" ENTER
-    tmux send-keys -t thesis-packet-flood.2 "poe --root cluster_tools run pod -m $NODE1 ssh arch -- sh -c \"\\\"sleep 10; analyzer --push-results-url {{callback_url}} packet-flood --count {{count}} --runtime-sec 60\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.0 "poe --root cluster_tools run ssh $NODE2 -- sh -c \"\\\"sudo analyzer --push-results-url {{callback_url}} node-logger --only-upcalls --runtime-sec 150\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.1 "poe --root cluster_tools run pod -m $NODE1 ssh victim -- sh -c \"\\\"analyzer --push-results-url {{callback_url}} victim --runtime-sec 150\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.2 "poe --root cluster_tools run pod -m $NODE1 ssh arch -- sh -c \"\\\"sleep 10; analyzer --push-results-url {{callback_url}} packet-flood --count {{count}} --runtime-sec 120\\\"\" ; {{shell_exit}}" ENTER
     
     tmux attach -t thesis-packet-flood
     

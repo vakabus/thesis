@@ -1,4 +1,5 @@
 import pandas as pd
+import polars as pl
 from matplotlib import pyplot as plt
 import numpy as np
 import sys
@@ -8,11 +9,13 @@ if len(sys.argv) == 1:
     print("missing argument - name of input csv")
     exit(1)
 
-dataframe = pd.read_csv(sys.argv[1])
+dataframe = pl.read_csv(sys.argv[1])
 print(dataframe.head())
 
-dataframe.sort_values("us_since_last_measurement", inplace=True)
-dataframe.reset_index(drop=True, inplace=True)
+above11 = dataframe.filter(pl.col("us_since_last_measurement") > 11_000_000).filter(pl.col('us_latency1') < 10_000).filter(pl.col('us_latency2') < 10_000).with_columns((pl.col("us_latency1") - pl.col("us_latency2")).alias("diff"))
+print(above11.describe())
+
+dataframe = dataframe.sort("us_since_last_measurement")
 
 bf = plt.scatter(dataframe['us_since_last_measurement'] / 1000, dataframe['us_latency1'], label="first ping", marker=".")
 bs = plt.scatter(dataframe['us_since_last_measurement'] / 1000, dataframe['us_latency2'], label="second ping", marker=".")

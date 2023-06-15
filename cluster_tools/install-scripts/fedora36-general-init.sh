@@ -147,20 +147,22 @@ Gateway=192.168.1.1
 DNS=192.168.1.1
 EOF
 
-    # management NIC on the big server
-#    cat <<EOF | sudo tee /etc/systemd/network/eno3.network
-#[Match]
-#Name=eno3
-#
-#[Network]
-#DHCP=ipv4
-#EOF
+    # management NIC on the big server, just bring it up
+    cat <<EOF | sudo tee /etc/systemd/network/eno3.network
+[Match]
+Name=eno3
+
+[Network]
+DHCP=no
+IPv6AcceptRA=no
+EOF
     cat <<EOF | sudo tee /etc/systemd/network/breno3.network
 [Match]
 Name=breno3
 
 [Network]
 DHCP=ipv4
+IPv6AcceptRA=no
 EOF
 
     # cluster NIC on the big server

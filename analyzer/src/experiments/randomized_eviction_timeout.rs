@@ -5,7 +5,7 @@ use csv::WriterBuilder;
 use rand::Rng;
 use std::{net::IpAddr, str::FromStr, thread::sleep, time::Duration};
 
-use crate::utils::latency::ping_twice;
+use crate::utils::latency::{ping_twice, ping_multiple};
 
 #[derive(Parser, Debug)]
 pub struct RandomizedEvictionTimeoutArgs {
@@ -17,8 +17,11 @@ pub struct RandomizedEvictionTimeoutArgs {
     #[arg(long, default_value_t = 12000)]
     delay_max: u64,
 
-    #[arg(long, default_value_t = String::from("192.168.1.1"))]
+    #[arg(long, default_value_t = String::from("192.168.1.221"))]
     target_ip: String,
+
+    #[arg(long, default_value_t = 2)]
+    count: usize
 }
 
 pub fn run(args: RandomizedEvictionTimeoutArgs) {
@@ -32,8 +35,13 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
     );
     info!("results will be written to {}", filename);
     let mut output = WriterBuilder::new().from_path(filename).unwrap();
+
+    let mut header = vec!["us_since_last_measurement".to_owned()];
+    for i in 0..args.count {
+        header.push(format!("us_latency{}", i+1));
+    }
     output
-        .write_record(["us_since_last_measurement", "us_latency1", "us_latency2"])
+        .write_record(header)
         .unwrap(); // header
 
     // warmup
@@ -48,15 +56,14 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
         sleep(sleep_time);
 
         // measure
-        match ping_twice(addr) {
-            Ok((d1, d2)) => {
+        match ping_multiple(args.count, addr) {
+            Ok(durs) => {
+                let mut record = vec![sleep_time.as_micros().to_string()];
+                record.extend(durs.into_iter().map(|d| d.as_micros().to_string()));
+
                 // write
                 output
-                    .write_record(&[
-                        sleep_time.as_micros().to_string(),
-                        d1.as_micros().to_string(),
-                        d2.as_micros().to_string(),
-                    ])
+                    .write_record(record)
                     .unwrap();
                 output.flush().expect("failed to flush results to disk");
 

@@ -79,10 +79,10 @@ impl Monitor for PingMonitor {
     }
 }
 
-pub fn ping_twice(addr: IpAddr) -> Result<(Duration, Duration), anyhow::Error> {
+pub fn ping_multiple(count: usize, addr: IpAddr) -> Result<Vec<Duration>, anyhow::Error> {
     // the pings are 10ms apart, that should be enough for the kernel to create the rule
     let child = Exec::cmd("ping")
-        .args(&["-c", "2", "-i", "0.01", "-w", "1", &addr.to_string()])
+        .args(&["-c", &format!("{}", count), "-i", "0.01", "-w", "1", &addr.to_string()])
         .stdout(Redirection::Pipe)
         .capture()
         .unwrap();
@@ -95,14 +95,22 @@ pub fn ping_twice(addr: IpAddr) -> Result<(Duration, Duration), anyhow::Error> {
         let out = child.stdout_str();
         let mut lines = out.lines().skip(1); // header
 
-        let line1 = lines.next().context("missing first ping stats")?;
-        let line2 = lines.next().context("missing second ping stats")?;
+        let mut res = Vec::with_capacity(count);
+        for i in 0..count {
+            let line = lines.next().context(format!("missing {}th ping stats", i+1))?;
+            res.push(parse_ping_output_line(line)?);
+        }
 
-        Ok((
-            parse_ping_output_line(line1)?,
-            parse_ping_output_line(line2)?,
-        ))
+        Ok(res)
     }
+}
+
+pub fn ping_twice(addr: IpAddr) -> Result<(Duration, Duration), anyhow::Error> {
+    let vec = ping_multiple(2, addr)?;
+    Ok((
+        vec[0],
+        vec[1]
+    ))
 }
 
 pub fn dns_lookup(server: IpAddr) -> Duration {

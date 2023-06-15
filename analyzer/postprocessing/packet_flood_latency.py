@@ -21,7 +21,28 @@ usdt_flow_limit, usdt_barriers, kernel_lock = parse_usdt(glob.glob(f"{d}/ovs-vsw
 dpctl_log = parse_dpctl_dump(glob.glob(f"{d}/log_ovs_dpctl_show*.csv")[0])
 loadavg = parse_loadavg(glob.glob(f"{d}/loadavg*.csv")[0])
 trace_table, trace_cmd, trace_upcalls, trace_upcalls_filtered, vswitchd, udp_rtt_latencies, udp_rtt_dropped, icmp_lat, icmp_err, usdt_flow_limit, usdt_barriers, kernel_lock, dpctl_log, loadavg = normalize_ts(trace_table, trace_cmd, trace_upcalls, trace_upcalls_filtered, vswitchd, udp_rtt_latencies, udp_rtt_dropped, icmp_lat, icmp_err, usdt_flow_limit, usdt_barriers, kernel_lock, dpctl_log, loadavg)
-random_data = np.random.rand(len(trace_upcalls)) * (-10000) - 5000
+random_data = np.random.rand(len(trace_upcalls)) * (-200) - 100
+
+
+STRESSED_INTERVAL = [12, 125]
+NON_STRESSED_INTERVAL = [145, 239]
+import numpy as np
+import scipy.stats
+def mean_confidence_interval(data, confidence=0.95):
+    a = 1.0 * np.array(data)
+    n = len(a)
+    m, se = np.mean(a), scipy.stats.sem(a)
+    h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+    return m, m-h, m+h
+print("stressed UDP latency")
+st = udp_rtt_latencies.filter(pl.col("ts").is_between(*STRESSED_INTERVAL))
+print(st.describe())
+print(mean_confidence_interval(st['latency_ns']))
+print("non-stressed UDP latencies")
+nst = udp_rtt_latencies.filter(pl.col("ts").is_between(*NON_STRESSED_INTERVAL))
+print(nst.describe())
+print(mean_confidence_interval(nst['latency_ns']))
+
 
 
 print("Data loading finished, rendering plots...")
@@ -32,12 +53,12 @@ fig = plt.figure("time")
 ax: plt.Axes = fig.subplots()
 ax.scatter(trace_upcalls['ts'], random_data, label="upcalls (y-value does not mean anything)", marker=".", color="red", alpha=0.1)
 #ax.scatter(vswitchd["ts"], vswitchd["vswitchd_threads"] * 10000, label="vswitchd threads * 10000", color="green", marker=".")
-ax.scatter(vswitchd["ts"], vswitchd["vswitchd_rss_bytes"] / 10240, label="vswitchd rss in 10KiB)", marker=".", color="orange")
+#ax.scatter(vswitchd["ts"], vswitchd["vswitchd_rss_bytes"] / 10240, label="vswitchd rss in 10KiB)", marker=".", color="green")
 #ax.plot(trace_table['ts'], trace_table['flows'], label="flow table size")
-ax.plot(dpctl_log['ts'], dpctl_log['flows'], label="flow table size")
+#ax.plot(dpctl_log['ts'], dpctl_log['flows'], label="flow table size")
 
 # load average
-ax.plot(loadavg["ts"], loadavg["loadavg1"] * 10000, label="loadavg * 10k")
+#ax.plot(loadavg["ts"], loadavg["loadavg1"] * 10000, label="loadavg * 10k")
 
 ax.hlines([0], [0], [trace_table['ts'].tail(1).item()], linestyles="dotted", colors="black")
 def timing(df: pl.DataFrame) -> pl.DataFrame:
@@ -53,18 +74,20 @@ def timing(df: pl.DataFrame) -> pl.DataFrame:
 # vswitchd.lazy().with_columns((pl.col("vswitchd_utime_sec") < 0.25).cast(pl.Int16).cumsum().alias("delim")).groupby(pl.col("delim")).apply(timing, None).collect()
 
 # UDP packets
-ax.scatter(udp_rtt_latencies["ts"], udp_rtt_latencies["latency_ns"] / 100_000, label="UDP packet RTT in 0.1ms", marker=".", color="green", alpha=0.5)
-ax.hlines(udp_rtt_latencies["latency_ns"] / 100_000, udp_rtt_latencies['ts'], udp_rtt_latencies['ts'] + udp_rtt_latencies['latency_ns'].cast(pl.Float64) / 1_000_000_000, color="green", alpha=0.1)
-ax.scatter(udp_rtt_dropped["ts"], udp_rtt_dropped["ts"]*0 - 1_000, label="dropped UDP packets", marker="o", color="green", alpha=0.5)
+ax.scatter(udp_rtt_latencies["ts"], udp_rtt_latencies["latency_ns"] / 1_000, label="UDP packet RTT in us", marker=".", color="green", alpha=0.5)
+ax.hlines(udp_rtt_latencies["latency_ns"] / 1_000, udp_rtt_latencies['ts'], udp_rtt_latencies['ts'] + udp_rtt_latencies['latency_ns'].cast(pl.Float64) / 1_000_000_000, color="green", alpha=0.1)
+#ax.scatter(udp_rtt_dropped["ts"], udp_rtt_dropped["ts"]*0 - 1_000, label="dropped UDP packets", marker="o", color="green", alpha=0.5)
+ax.hlines(-50, STRESSED_INTERVAL[0], STRESSED_INTERVAL[1], colors="blue", linestyles="solid", label="sample range for stressed data")
+ax.hlines(-50, NON_STRESSED_INTERVAL[0], NON_STRESSED_INTERVAL[1], colors="orange", linestyles="solid", label="sample ranges for non-stressed data")
 
 # ICMP
-ax.scatter(icmp_lat["ts"], icmp_lat["latency_ns"] / 100_000, label="ICMP RTT in 0.1ms (ping cmd)", marker=".", color="purple", alpha=0.5)
-ax.hlines(icmp_lat["latency_ns"] / 100_000, icmp_lat['ts'], icmp_lat['ts'] + icmp_lat['latency_ns'].cast(pl.Float64) / 1_000_000_000, color="purple", alpha=0.1)
-ax.scatter(icmp_err["ts"], icmp_err["ts"] * 0 - 2_000, label="ping cmd error", marker="o", color="purple", alpha=0.5)
+ax.scatter(icmp_lat["ts"], icmp_lat["latency_ns"] / 1_000, label="ICMP RTT in us (ping cmd)", marker=".", color="purple", alpha=0.5)
+ax.hlines(icmp_lat["latency_ns"] / 1_000, icmp_lat['ts'], icmp_lat['ts'] + icmp_lat['latency_ns'].cast(pl.Float64) / 1_000_000_000, color="purple", alpha=0.1)
+#ax.scatter(icmp_err["ts"], icmp_err["ts"] * 0 - 2_000, label="ping cmd error", marker="o", color="purple", alpha=0.5)
 
 # USDT flow limit
-ax.scatter(usdt_flow_limit['ts'], usdt_flow_limit['flow_limit'], label="flow limit (ovs-vswitchd)", color="red", marker="o")
-ax.hlines(usdt_flow_limit['flow_limit'], usdt_flow_limit['ts'] - usdt_flow_limit['duration_ns'].cast(pl.Float64) / 1_000_000_000, usdt_flow_limit['ts'], alpha=0.1, color="red")
+#ax.scatter(usdt_flow_limit['ts'], usdt_flow_limit['flow_limit'], label="flow limit (ovs-vswitchd)", color="red", marker="o")
+#ax.hlines(usdt_flow_limit['flow_limit'], usdt_flow_limit['ts'] - usdt_flow_limit['duration_ns'].cast(pl.Float64) / 1_000_000_000, usdt_flow_limit['ts'], alpha=0.1, color="red")
 #ax.scatter(usdt_flow_limit['ts'], usdt_flow_limit['duration_ns'].cast(pl.Float64) / 100_000, color="orange", label="revalidator loop duration in 0.1ms")
 
 # USDT barriers

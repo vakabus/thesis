@@ -145,7 +145,7 @@ def parse_udp_rr(filename: str) -> Tuple[pl.DataFrame, pl.DataFrame]:
         2. packets with timeouts
     """
 
-    df = pl.read_csv(filename, dtypes={"latency_ns": pl.UInt64})
+    df = pl.read_csv(filename, dtypes={"latency_ns": pl.UInt64, "ts": pl.Int64})
 
     latencies_only = df.filter(pl.col("latency_ns") != 0xFFFF_FFFF_FFFF_FFFF)
     dropped_only = df.filter(pl.col("latency_ns") == 0xFFFF_FFFF_FFFF_FFFF)
@@ -172,6 +172,8 @@ def parse_icmp_rtt(filename: str) -> Tuple[pl.DataFrame, pl.DataFrame]:
 def parse_dpctl_dump(filename: str) -> pl.DataFrame:
     return pl.read_csv(filename).rename({'ns_monotonic': 'ts'})
 
+def parse_loadavg(filename: str) -> pl.DataFrame:
+    return pl.read_csv(filename)
 
 def parse_vswitchd(filename: str) -> pl.DataFrame:
     return pl.read_csv(filename)

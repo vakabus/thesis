@@ -23,5 +23,3 @@ def rolling_window_left(roll_by, roll_what, window_size):
             break
 
         yield roll_by[start], values
-
-        

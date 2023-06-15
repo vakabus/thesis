@@ -2,6 +2,7 @@ from scapy.all import *
 import sys
 import json
 import pandas as pd
+import polars as pl
 from matplotlib import pyplot as plt
 import glob
 import numpy as np
@@ -35,8 +36,8 @@ ax: plt.Axes = fig.subplots()
 ax.plot(trace_table['ts'], trace_table['flows'], label="flow table size")
 ax.scatter(trace_upcalls['ts'], trace_upcalls['ts']*0, label="upcalls")
 ax.vlines(tags["ts"], 0, 900, linestyles="dotted", colors="red")
-for _,t in tags.iterrows():
-    ax.text(t.ts, 5, t.tag, rotation = 90, bbox=dict(boxstyle="round", ec=(1., 0.5, 0.5),fc=(1., 0.8, 0.8)))
+for tag, ts in tags.iter_rows():
+    ax.text(ts, 5, tag, rotation = 90, bbox=dict(boxstyle="round", ec=(1., 0.5, 0.5),fc=(1., 0.8, 0.8)))
 ax.legend()
 fig.tight_layout()
 ax.set_xlabel("ns (CLOCK_MONOTONIC)")
@@ -44,22 +45,27 @@ ax.set_ylabel("count")
 
 
 # bar chart processing
-trace_upcalls['bin'] = pd.cut(trace_upcalls['ts'], bins=tags['ts'], labels=tags['tag'][:-1], ordered=False)
-trace_upcalls = trace_upcalls[~trace_upcalls['bin'].isnull()]
-upcalls_per_type = trace_upcalls.groupby("bin", sort=True).count()
+trace_upcalls = trace_upcalls.with_columns(
+    trace_upcalls['ts'].cut(bins=tags['ts'], labels=["junk"]+list(tags['tag']), maintain_order=True, category_label='test')['test'].cast(str)
+).filter(~pl.col("test").is_in(("junk", "end")))
+upcalls_per_type = trace_upcalls.groupby("test", maintain_order=True).count().join(tags, left_on="test", right_on="tag", how="outer").filter(~pl.col("test").is_in(("junk", "end")))
 
-trace_upcalls_filtered['bin'] = pd.cut(trace_upcalls_filtered['ts'], bins=tags['ts'], labels=tags['tag'][:-1], ordered=False)
-trace_upcalls_filtered = trace_upcalls_filtered[~trace_upcalls_filtered['bin'].isnull()]
-upcalls_per_type_filtered = trace_upcalls_filtered.groupby("bin", sort=True).count()
+trace_upcalls_filtered = trace_upcalls_filtered.with_columns(
+    trace_upcalls_filtered['ts'].cut(bins=tags['ts'], labels=["junk"]+list(tags['tag']), maintain_order=True, category_label='test')['test'].cast(str)
+).filter(~pl.col("test").is_in(("junk", "end")))
+upcalls_per_type_filtered = trace_upcalls_filtered.groupby("test", maintain_order=True).count().join(tags, left_on="test", right_on="tag", how="outer").filter(~pl.col("test").is_in(("junk", "end")))
+
+print("difference between the sets")
+print(set(upcalls_per_type['test']).symmetric_difference(set(upcalls_per_type_filtered['test'])))
 
 
 # bar chart
 fig = plt.figure("tests")
 ax: plt.Axes = fig.subplots()
 pos = np.arange(len(upcalls_per_type))
-ax.bar(pos, upcalls_per_type['ts'], align='center', alpha=0.5, label="all upcalls during measurements") # the ['ts'] does not matter, it all contains count
-ax.bar(pos, upcalls_per_type_filtered['ts'], align='center', alpha=0.5, label="upcalls during measurements (direct cause was us)") # the ['ts'] does not matter, it all contains count
-ax.set_xticks(pos, upcalls_per_type.index, rotation='vertical')
+ax.bar(pos, upcalls_per_type['count'], align='center', alpha=0.5, label="all upcalls during measurements")
+#ax.bar(pos, upcalls_per_type_filtered['count'], align='center', alpha=0.5, label="upcalls during measurements (direct cause was us)")
+ax.set_xticks(pos, upcalls_per_type["test"], rotation='vertical')
 ax.legend()
 ax.set_ylabel("number of upcalls")
 ax.hlines(1000, xmin=0, xmax=len(upcalls_per_type), linestyles="dotted", color="red")
