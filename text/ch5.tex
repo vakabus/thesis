@@ -1,11 +1,104 @@
-\chapter{Discussion}
-\label{chap:discussion}
-\todo{hmm, is there something to write here?}
+\chapter{Notable accidental discoveries and dead-ends}
+\label{chap:accidents}
 
-\section{List of open question}
-\todo{what are the things we found and do not know the answer to?}
+\xxx{This chapter might not be included in the final version. Now it's just a placeholder with a dump of random information. If you are reviewing my work, please jump straight away to the next chapter.}
+
+\section{Accidental bug discovery}
+\todo{this is really a placeholder with the email I wrote, replace it with something meaningful...}
+
+Hi,
+
+I think I might have found a bug or just a really weird unexpected behavior. I am reporting it here, but I've reproduced it only on systems with OVN-Kubernetes and OVN. I don't know whether it can be replicated with standalone OVS.
 
 
-\section{Improvement suggestions}
-\todo{What can be made better about OVS, OVN, OVN-Kubernetes}
+\subsection{Test environment}
+
+
+3 node Kubernetes cluster using OVN-Kubernetes, Docker and Fedora 38. All nodes in a single LAN with IPs 192.168.1.{221,222,223}. From now on, I will refer to the nodes only by the last digit of their IP address.
+
+
+\subsection{Steps to reproduce:}
+
+
+\begin{enumerate}
+\item install a pod with a shell and a ping command (I am using docker.io/archlinux:latest, always running on node 222)
+\item run `kubectl exec -ti \$POD\_NAME -- ping 192.168.1.221`
+\item in a different terminal, ssh into the host of the pod (in my case node 222) and run `ovs-dpctl del-flows`
+\item observe the measured latencies
+\item keep the ping running and kill ovs-vswitchd on the host and wait for its restart
+\item observe the latencies
+\end{enumerate}
+
+
+\subsection{What I observe}
+
+
+\begin{verbatim}
+[root@wsfd-netdev64 ~]# kubectl exec -ti arch -- ping 192.168.1.221
+PING 192.168.1.221 (192.168.1.221) 56(84) bytes of data.
+64 bytes from 192.168.1.221: icmp_seq=1 ttl=63 time=0.543 ms
+64 bytes from 192.168.1.221: icmp_seq=2 ttl=63 time=0.160 ms
+64 bytes from 192.168.1.221: icmp_seq=3 ttl=63 time=0.119 ms
+64 bytes from 192.168.1.221: icmp_seq=4 ttl=63 time=0.144 ms
+64 bytes from 192.168.1.221: icmp_seq=5 ttl=63 time=0.137 ms
+64 bytes from 192.168.1.221: icmp_seq=6 ttl=63 time=0.996 ms  # < ovs-dpctl del-flows
+64 bytes from 192.168.1.221: icmp_seq=7 ttl=63 time=0.808 ms
+64 bytes from 192.168.1.221: icmp_seq=8 ttl=63 time=1.01 ms
+64 bytes from 192.168.1.221: icmp_seq=9 ttl=63 time=1.24 ms
+64 bytes from 192.168.1.221: icmp_seq=10 ttl=63 time=1.20 ms
+64 bytes from 192.168.1.221: icmp_seq=11 ttl=63 time=1.14 ms
+64 bytes from 192.168.1.221: icmp_seq=12 ttl=63 time=1.10 ms  # < killall ovs-vswitchd
+  From 10.244.1.5 icmp_seq=22 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=23 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=24 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=25 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=26 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=27 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=28 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=29 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=31 Destination Host Unreachable
+  From 10.244.1.5 icmp_seq=32 Destination Host Unreachable
+64 bytes from 192.168.1.221: icmp_seq=34 ttl=63 time=1371 ms
+64 bytes from 192.168.1.221: icmp_seq=35 ttl=63 time=322 ms
+64 bytes from 192.168.1.221: icmp_seq=36 ttl=63 time=0.186 ms
+64 bytes from 192.168.1.221: icmp_seq=37 ttl=63 time=0.192 ms
+64 bytes from 192.168.1.221: icmp_seq=38 ttl=63 time=0.140 ms
+64 bytes from 192.168.1.221: icmp_seq=39 ttl=63 time=0.163 ms
+^C
+--- 192.168.1.221 ping statistics ---
+39 packets transmitted, 18 received, +10 errors, 53.8462% packet loss, time 38769ms
+rtt min/avg/max/mdev = 0.119/94.570/1370.551/318.102 ms, pipe 3
+\end{verbatim}
+
+After flushing the datapath flow rules, the RTTs increase. This indicates an upcall for every single packet. I confirmed this by tracing the kernel and the upcalls are definitely there (actually, this is how I discovered the whole issue). The system can remain in this state for a long time (at least minutes).
+
+After restarting vswitchd, the upcalls stop happening and everything is fast again.
+
+
+I have also confirmed, that the same thing happens to UDP packets. The same also happens regardless of which node in the cluster I target, even the pod's host.
+
+
+\subsection{What I expect}
+
+
+I expected only a few upcalls in response to flushing the datapath, after which a new datapath rules would get inserted into the kernel.
+
+
+\subsection{Repeatability}
+
+
+Flushing the rules and restarting vswitchd seems to be a certain method to flip the system between the two different states. However the upcall-making state seems unstable and it sometimes reverts back to the expected lower-latency state by itself. It appears to me that flooding the system with unrelated upcalls and rules increases the chance of an "autonomous fix".
+
+
+At this point, I don't believe this would cause significant problems. I just find the behavior extremely weird.
+
+Is there something more I could provide to help with reproducing this? Or should I report it elsewhere?
+
+
+Best,
+Vašek Šraier 
+
+\section{Lock contention investigation}
+\todo{write about the fact, that there does not seem to be a problematic lock in OVS, because we checked them almost all}
+
 

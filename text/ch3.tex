@@ -49,7 +49,7 @@ We conducted the experiment in the following way:
 \begin{enumerate}
     \item Generate a random number $D$ in the interval $\interval{8}{12}$
     \item sleep for $D$ seconds
-    \item run \ident{ping -c 2 192.168.1.221}
+    \item run \ident{ping -c 2 -i 0.01 192.168.1.221}
     \item log $D$ and both round trip times
     \item goto step 1 until we have enough
 \end{enumerate}
@@ -119,6 +119,6 @@ while True:
 Only instead of sending the packets one by one every time, we send them in batches using \ident{io\_uring} if it is possible. When we set the interval to \qty{1}{\ns} (zero is not possible due to division by zero), we can reach roughly 210k packets per second in a single thread on the dedicated test server.
 
 \paragraph{The experiment}
-For our experiment, we stressed OVS using our tool and monitored the system. We mainly measured OVS's memory consumption, the load average of the whole system and latencies observable from the \ident{victim} pod.
+For our experiment, we stressed OVS using our tool and monitored the system. We mainly measured OVS's memory consumption, the load average of the whole system and latencies observable from the \ident{victim} pod. We always started with a freshly restarted \ident{ovs-vswitchd}.
 
 The results of the experiment can be found in \cref{res:upcall-stress}.
