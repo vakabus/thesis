@@ -31,6 +31,7 @@ In our experiments, we always used a three-node cluster with one node dedicated 
 We named our cluster nodes \kb{1}, \kb{2}, and \kb{3}. The node \kb{1} is always the control node, our experiments always run on \kb{2}.
 
 \subsection{OVN-Kubernetes configuration}
+\label{subsec:ovnkube-limits}
 
 We deployed a fully containerized OVN-Kubernetes, meaning that even OVS was deployed in a privileged container. The default OVS container spec file contains \href{https://github.com/ovn-org/ovn-kubernetes/blob/master/dist/templates/ovs-node.yaml.j2\#L84-L90}{this resource limit}:
 

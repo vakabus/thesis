@@ -1,11 +1,94 @@
 \chapter{Discussion}
 \label{chap:discussion}
-\todo{hmm, is there something to write here?}
 
-\section{List of open question}
+\section{Possible OVS improvements}
+
+Throughout our experiments, we have identified several areas in OVS that we believe could be immediately improved upon:
+
+\begin{itemize}
+    \item Instead of a fixed flow eviction timeout, enforce the flow limit in \ident{ovs-vswitchd} by using a PID controller and a variable eviction timeout.
+    \item Free unused memory
+    \item Remove the resource limits in OVN-Kubernetes default container configuration
+\end{itemize}
+
+Other areas require better investigation before they can be improved, but we believe that it is worth the effort:
+
+\begin{itemize}
+    \item Gracefully handle out-of-memory conditions
+    \item Diagnose and try to prevent a crash of \ident{ovs-vswitchd} when it is CPU limited
+    \item Investigate how best to prevent upcalls when using OVS as a firewall
+\end{itemize}
+
+\subsection{Flow limit with a PID controller}
+
+In \cref{subsec:standard-behavior}, we explored how \ident{ovs-vswitchd} enforces the limit of the number of flows in the kernel flow table. In \cref{subsec:cpu-limit}, we followed up with additional details on how the limit is calculated. We believe that a PID controller would prevent the unstable oscillating behavior we saw in \cref{fig:packet-flood-limited}.
+
+There are multiple possible implementations and we do not have enough data to say which one would work the best. We would suggest doing one of the following:
+
+\begin{itemize}
+    \item There could be a single PID loop taking the runtime of the revalidator threads as input. The output would be the current size limit of the flow table. Another PID loop would take the real number of flows in the flow table and output the flow eviction timeout.
+
+    \item A single PID loop could generate the eviction timeout. An additional emergency mechanism would be needed to prevent accidental overfilling.
+\end{itemize}
+
+\subsection{Free unused memory}
+
+In \cref{par:memory-usage}, we observed that memory is never released in \ident{ovs-vswitchd} after it has been allocated. It is technically not leaked, because \ident{ovs-vswitchd} will reuse the memory whenever there is a need. But under normal circumstances, there are not that many flows. 
+
+While there could be reasons for not releasing the allocated memory (e.g. it would require synchronization), we think that it could be a problem in deployments on hardware with limited resources.
+
+Alternatively, the maximum number of flows could be by default dependent on the amount of system memory. Defaulting to using 10\% of system memory at most seems as a better solution compared to allocating fixed 2GB.
+
+
+\subsection{Default OVN-Kubernetes configuration}
+
+In \cref{subsec:ovnkube-limits} we talked about the default resource limit of OVS deployment in OVN-Kubernetes. We suggest completely removing the limit. Unless the crashes and extremely high latencies can be prevented, limiting OVS's resources currently introduces more problems than it solves.
+
+To limit memory usage without strict limits, default maximum size of the flow table could be decreased from 200k to a small fraction of it.
+
+
+\subsection{Out-of-memory conditions}
+
+In \cref{subsec:memory}, we observed crashes of \ident{ovs-vswitchd} when we limited the available physical memory. While we understand, that reacting to limited memory is not simple, we believe that a graceful degradation of functionality would be preferred when it comes to networking infrastructure. Moreso, there seems to be a correlation between the number of flows in the flow table and memory usage. It should be possible to limit the number of flows not only based on computation time but also based on the amount of available memory.
+
+While nice in theory, we think that a practical implementation would require better insight into how memory is allocated and used. Therefore improvement of this requires further research.
+
+
+\subsection{Crashes when \ident{ovs-vswitchd} is CPU-limited}
+
+In \cref{par:cpu-crashes}, we noticed that \ident{ovs-vswitchd} crashes under extreme stress when CPU-limited. We do not know what is the cause, so we can only suggest that more research should be done.
+
+\subsection{OVS as a firewall}
+
+In \cref{subsec:ethernet} we have found a design flaw in OVS that prevents OVS from effectively blocking traffic. OVS allows only positive matches in its datapath flow rules. Negative wildcard matches can currently be handled only in userspace. Out of the issues we have discovered, we believe that this is the most complicated one to fix. 
+
+\subsubsection{Fix without changing the kernel module}
+Changing the kernel module might be undesirable because a similar interface is also implemented in hardware.\todo{link https://docs.openstack.org/neutron/rocky/admin/config-ovs-offload.html} Additionally, the hardware offloaded processing is very likely to have the same issue and we want to prevent upcall generation there as well. Therefore, we might want to generate ordinary datapath flow rules which would drop the invalid packets. This is however impossible without eliminating the possibility of an exponential growth of the number of flow rules.
+
+In general, let us assume an OpenFlow table with a default drop rule and several exact match rules accepting the packet (e.g. resubmitting it to a different table). Every rule matching a packet is equivalent to a logic formula where the variables represent bits of the flow key. Specifically, the formula is a conjunction. The whole table can be therefore expressed as a single DNF formula matching valid packets. Let us call the formula $F$.
+
+Now, let us express the formula matching packets that should be dropped. $\neg F$ is true for all invalid packets. However, it is not in DNF anymore, so we cannot translate it directly back. Using De Morgan's laws, we can rewrite $\neg F$ as a CNF formula of the same length. Then, we have to convert it back to DNF. However, the conversion of a CNF formula to a DNF formula could potentially lead to exponential growth in the number of conjunctions. Therefore, potentially exponential explosion in the number of rules we need to drop the packets.
+
+It might still be practical to use this technique to implement simple port security and allow only a single MAC address on a switch port. That would require only 49 rules - 48 to drop invalid packets, a single rule for recirculation of valid packets. However, expressing anything more complicated is probably impractical due to drops in performance.
+
+\subsubsection{Fix with a change in the kernel module}
+
+If we allow ourselves to change the kernel module, the fix can be implemented relatively easily. We could leave the processing as it is and add packet filtering before we make an upcall. For example, we could add a second, negative, flow table. Any packet it would match would get dropped. The used flow key could stay the same, only the kernel interface would double in size.
+
+
+\section{recommendation for public cloud providers}
+
+Our findings certainly impact public cloud providers using OVS. We would recommend at the very least:
+
+\begin{enumerate}
+    \item Verify, that \ident{ovs-vswitchd} is running without any resource constraints.
+    \item Monitor the number of flows in the flow tables (i.e. \ident{ovs-dpctl show}) and trigger a warning whenever the number of flows reaches the limit.
+\end{enumerate}
+
+In case the cloud provider uses OVS for firewalling, we would recommend switching to some other technology. OVS is in our opinion currently unsuitable for blocking undesirable traffic.
+
+\section{Open questions}
+
+\xxx{nice to have, but let's worry about it later}
 \todo{what are the things we found and do not know the answer to?}
-
-
-\section{Improvement suggestions}
-\todo{What can be made better about OVS, OVN, OVN-Kubernetes}
 

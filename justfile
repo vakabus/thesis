@@ -222,3 +222,6 @@ text:
 
 show-text:
     evince text/thesis.pdf &
+
+publish-text: text
+    rsync text/thesis.pdf mail:/home/user-data/www/vsq.cz/thesis.pdf

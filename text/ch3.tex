@@ -44,12 +44,12 @@ The first packet delay is absent when we run the \ident{ping} command for the se
 Assuming the timeout stays constant, we can measure it by varying the interval between ICMP packets. The dependency between the measured latency and the time delay should be constant except for one sharp increase in latency when the delays get longer than the timeout.
 
 \paragraph{Our experiment}
-We conducted the experiment in the following way:
+We experimented in the following way:
 
 \begin{enumerate}
     \item Generate a random number $D$ in the interval $\interval{8}{12}$
     \item sleep for $D$ seconds
-    \item run \ident{ping -c 2 -i 0.01 192.168.1.221}
+    \item run \ident{ping -c 3 -i 0.01 192.168.1.221}
     \item log $D$ and both round trip times
     \item goto step 1 until we have enough
 \end{enumerate}
@@ -60,6 +60,8 @@ We chose the interval based on non-rigorous preliminary experiments. After plott
     \item The first RTT data points will form a line with a sharp increase at a value of $D$ corresponding to the eviction timeout
 
     \item The second RTT data points will form only a single horizontal line.
+
+    \item The third ping will have the same results as the second.
 \end{itemize}
 
 Results of this experiment can be found in \cref{res:eviction-timeout}.

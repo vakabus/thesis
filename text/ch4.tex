@@ -12,7 +12,7 @@
     \label{fig:plot-eviction-timeout}
 \end{figure}
 
-\paragraph{The eviction timeout} The measured latencies of the experiment (\cref{fig:plot-eviction-timeout}) show the flow rule eviction taking effect about $10$ seconds after the last datapath rule installation. The observed value is not exact, but it is probably reasonable to assume the developers chose a nice-looking number. We hypothesize that the noise in the data is introduced mainly by infrequent eviction checks.
+\paragraph{The eviction timeout} The measured latencies of the experiment (\cref{fig:plot-eviction-timeout}) show the flow rule eviction taking effect about $10$ seconds after the last datapath rule installation. The observed value is not exact, but it is probably reasonable to assume the developers chose a nice-looking number. We hypothesize that the noise in the location of the increase is introduced mainly by infrequent eviction checks.
 
 Following these experimental findings, we searched the source code and it specifies exactly $10$ seconds as the default eviction timeout. The experimental findings are consistent with the source code. The default rule timeout defined in the file \ident{ofproto/ofproto.h}:
 \begin{verbatim}
@@ -52,37 +52,64 @@ poll_timer_wait_until(start_time + MIN(ofproto_max_idle,
     \item All consecutive packets hit the cache unless the cache entry is somehow overwritten.
 \end{enumerate}
 
-We did not confirm or disprove this hypothesis.
+The third RTT measurement behaves as expected by our hypothesis. We shortly experimented with even more consecutive measurements and they were all the same.
 
 
 \section{Cost of an upcall}
 \label{res:upcall-cost}
 \todo{this section is not great... Improve...}
 
-\paragraph{Cost of an upcall}
-As discussed in \cref{chap:design}, the round trip time increase can be attributed to upcall processing, therefore we can estimate the cost of an upcall. The difference between the round trip time without an upcall and with an upcall is around $1$ \si{\milli\second}. More precisely:
-\todo{The datapoint are not properly collected and also measured only on the virtualized hw. Repeat the experiment and replace the data with better. And maybe clean up the data?}
+\paragraph{Upcall processing cost}
+As discussed in \cref{chap:design}, the round trip time increase can be attributed to the cost of upcall processing. In the previous section, we noticed an increased latency with the second RTT measurement, possibly a cache miss in the kernel datapath.  We can estimate the cost of an upcall using this data. We calculated the difference between the first and the second ping measurements and assume the result is the lower bound for the upcall cost. Either our hypothesis about the cache miss is correct. Then the difference would be exactly the time spent processing the upcall. Or, we are wrong and the higher second ping latencies are caused by some additional factor which is not normally present. In that case, the upcall cost would be certainly equal to or higher than our result. We used only the data points with above $10.5$ second delay since the last measurement.
 
-% QT_QPA_PLATFORM=xcb python postprocessing/randomized_eviction_timeout.py results/randomized_eviction_timeout_2023-01-01.csv
+% QT_QPA_PLATFORM=xcb python postprocessing/randomized_eviction_timeout.py results/randomized_eviction_timeout/*.csv
 \begin{table}[h!]
     \begin{center}
-        \caption{Statistics of measured round trip times when the interval > 11 seconds}
+        \caption{Statistics of measured round trip times when the interval > 10.5 seconds}
         \label{tab:upcall-cost}
-        \begin{tabular}{r|S[table-format=5.2]S[table-format=5.2]S[table-format=-5.2]}
+        \begin{tabular}{r|S[table-format=4.2]S[table-format=4.2]S[table-format=4.2]}
             & \textbf{First ping RTT} & \textbf{Second ping RTT} & \textbf{Difference} \\
             \hline
-            \textbf{\#samples} & 359 & 359 & 359 \\
-            \textbf{Mean} & 2396.82 & 1821.39 & 575.43\\
-            \textbf{Std} & 6070.44 & 7258.98 & 5307.93\\
-            \textbf{Min} & 1090.0 & 483.0 & -58590.0 \\
-            \textbf{25th percentile} & 1500.0 & 733.0 & \xxx{??} \\
-            \textbf{Median} & 1630.0 & 674.0 & 872.0 \\
-            \textbf{75th percentile} & 1730.0 & 815.0 & 993.0 \\
-            \textbf{Max} & 81600.0 & 70100.0 & 28460.0 \\
+            \textbf{\#samples} & 1596 & 1596 & 1596 \\
+            \textbf{Mean} & 1399.94 & 483.66 & 916.28 \\
+            \textbf{Std} & 162.74 & 59.73 & 154.52\\
+            \hline
+            \textbf{Min} & 769 & 250 & 149 \\
+            \textbf{25th percentile} & 1300 & 467 & 814 \\
+            \textbf{Median} & 1410 & 488.0 & 935 \\
+            \textbf{75th percentile} & 1520 & 504 & 1031 \\
+            \textbf{Max} & 2030 & 878 & 1460 \\
         \end{tabular}
     \end{center}
 \end{table}
 
+The mean of the latency difference is within $916.28 \pm 7.59$ \si{\micro\second} with 95\% confidence. 
+
+\paragraph{Comparison to previous results}
+
+We can not directly compare our results with \href{https://developers.redhat.com/articles/2022/02/07/investigating-cost-open-vswitch-upcalls-linux}{Eelco Chaudron's}, because we do not have the same test environment. Under simulated normal conditions, he concluded that the time from the kernel's upcall invocation til the kernel's packet execution is on average $149.83$ \si{\micro\second} ($56446$ samples). Our results are 6x higher. In the same article, he notes:
+
+\begin{quote}
+My sample runs have shown what I want to emphasize in this article: The way the upcalls are generated highly influences the outcome of the upcall costs.
+\end{quote}
+
+And he shows, that under stress the average upcall cost can be $29367.91$ \si{\micro\second} ($13807$ samples). Therefore, all we can say is that our results are in the range of possible upcalls costs according to his article.
+
+%┌────────────┬───────────────────────────┬─────────────┬─────────────┬───┬─────────────┬──────────────┬──────────────┬─────────────┐
+%│ describe   ┆ us_since_last_measurement ┆ us_latency1 ┆ us_latency2 ┆ … ┆ us_latency5 ┆ first_second ┆ second_third ┆ first_third │
+%│ ---        ┆ ---                       ┆ ---         ┆ ---         ┆   ┆ ---         ┆ ---          ┆ ---          ┆ ---         │
+%│ str        ┆ f64                       ┆ f64         ┆ f64         ┆   ┆ f64         ┆ f64          ┆ f64          ┆ f64         │
+%╞════════════╪═══════════════════════════╪═════════════╪═════════════╪═══╪═════════════╪══════════════╪══════════════╪═════════════╡
+%│ count      ┆ 1596.0                    ┆ 1596.0      ┆ 1596.0      ┆ … ┆ 1596.0      ┆ 1596.0       ┆ 1596.0       ┆ 1596.0      │
+%│ null_count ┆ 0.0                       ┆ 0.0         ┆ 0.0         ┆ … ┆ 0.0         ┆ 0.0          ┆ 0.0          ┆ 0.0         │
+%│ mean       ┆ 1.1492e7                  ┆ 1399.93985  ┆ 483.663534  ┆ … ┆ 78.058271   ┆ 916.276316   ┆ 385.445489   ┆ 1301.721805 │
+%│ std        ┆ 291241.87679              ┆ 162.744156  ┆ 59.725571   ┆ … ┆ 14.354351   ┆ 154.522521   ┆ 59.936718    ┆ 162.502307  │
+%│ min        ┆ 1.1001e7                  ┆ 769.0       ┆ 250.0       ┆ … ┆ 48.0        ┆ 149.0        ┆ 131.0        ┆ 672.0       │
+%│ max        ┆ 1.1999e7                  ┆ 2030.0      ┆ 878.0       ┆ … ┆ 168.0       ┆ 1460.0       ┆ 785.0        ┆ 1945.0      │
+%│ median     ┆ 1.1498e7                  ┆ 1410.0      ┆ 488.0       ┆ … ┆ 75.0        ┆ 935.0        ┆ 390.0        ┆ 1313.0      │
+%│ 25%        ┆ 1.1237e7                  ┆ 1300.0      ┆ 467.0       ┆ … ┆ 69.0        ┆ 814.0        ┆ 365.0        ┆ 1197.0      │
+%│ 75%        ┆ 1.1749e7                  ┆ 1520.0      ┆ 504.0       ┆ … ┆ 85.0        ┆ 1031.0       ┆ 408.0        ┆ 1426.0      │
+%
 
 
 \section{Packets generating upcalls}
@@ -99,6 +126,7 @@ As discussed in \cref{chap:design}, the round trip time increase can be attribut
 \Cref{fig:plot-packet-fuzz} shows the number of upcalls generated after sending 1000 crafted packets differing only in a value of a specified header field. We are interested in the peak of the plot, they signify packet types that consistently generate upcalls. The most significant being varying Ethernet source addresses and address fields in ARP packets.
 
 \subsection{Ethernet source addresses}
+\label{subsec:ethernet}
 
 Varying the Ethernet source address in the unicast range (the least significant bit of the first byte has to be 1) generates new upcalls. The flow rules being inserted into the flow table are similar to the following example\footnote{dumped with \ident{ovs-dpctl dump-flows}}:
 
@@ -158,10 +186,6 @@ Because OVS's datapath flow rules are much simpler than OpenFlow flow rules, the
 
 Looking at the problem from the other side, OVS's datapath is designed to assign packets to logical flows and execute the flow actions in as few instructions as possible. There are no precedence rules in the datapath flow table, the first matching rule is used and the order of insertion is not maintained. There are also only positive matches, no negative matches. Therefore, a single rule to drop all packets except for those with a given MAC address is impossible to construct.
 
-\paragraph{Possible fix implementation}
-MAC spoofing protection for a single MAC address can be implemented using 48 rules, each checking for a single flipped bit in the Ethernet address compared to the allowed address. One additional rule would match the correct MAC address and resubmit the packet with a different \ident{recirc\_id} (see \cref{subsec:ovs-actions}). All other rules in the flow table would have to start with a non-default recirculation context. With multiple allowed Ethernet addresses, multiple recirculations would have to be chained.
-
-However, to implement the protection as described, \ident{ovs-vswitchd} would have to change how the revalidator and the balancer threads work to prevent the eviction of these rules from the datapath. Alternatively, during an upcall, \ident{ovs-vswitchd} would have to check the already installed flow to find the missing rules. Either way, there is a performance penalty connected to all of these approaches. The kernel processing would be slower due to the increased number of flow table lookups.
 
 % translation happens here https://github.com/openvswitch/ovs/blob/64cdc290ef441bc3b4c2cddc230311ba58bc31b3/ofproto/ofproto-dpif-xlate.c#L7769-L7778
 % struct xlate_in https://github.com/openvswitch/ovs/blob/64cdc290ef441bc3b4c2cddc230311ba58bc31b3/ofproto/ofproto-dpif-xlate.h#L66
@@ -169,7 +193,7 @@ However, to implement the protection as described, \ident{ovs-vswitchd} would ha
 
 \subsection{ARP packet fields}
 
-ARP packets with varying hardware addresses behave the same as ordinary Ethernet packets with varying source hardware addresses because port security in OVN applies to them as well. The method of fixing this is also the same.
+ARP packets with varying hardware addresses behave the same as ordinary Ethernet packets with varying source hardware addresses because port security in OVN applies to them as well.
 
 \subsection{Other types of packets}
 
@@ -235,6 +259,7 @@ Because our packet flooding tool is a single-threaded application, it directly c
 Worryingly though, the additional system load is not attributed to the process causing it. In Kubernetes, a container can have a \href{https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/}{resource limits assigned}. Flooding the system with upcalls from a resource-limited container would allow it to stress the system beyond its allowance. 
 
 \paragraph{Memory usage}
+\label{par:memory-usage}
 In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k}, the resident set size of \ident{ovs-vswitchd} increases and stabilizes at slightly less than 2GB. The allocated memory is never released and stays allocated even after the flooding stops. The used memory seems to be proportional to the flow table size.
 
 Same as with the system load, memory usage bypasses resource accounting. A container or a VM with minimal resource allowance can use more resources than the system administrators configured.
@@ -295,6 +320,7 @@ While there does not seem to be any practically significant difference between t
 In \cref{subsec:standard-behavior}, we talked about extra memory and CPU usage of /ident{ovs-vswitchd}. The default containerized deployment of OVN-Kubernetes limits\footnote{https://github.com/ovn-org/ovn-kubernetes/blob/b982b8cadba939c55010829f61eb5ebe4fd90794/dist/templates/ovs-node.yaml.j2\#L84-L90} \ident{ovs-vswitchd} to 400 MiB of physical memory and two-tenths of a single CPU core. In the remainder of this section, when we write about limiting memory or CPU, we mean using Kubernetes to enforce the resource limit just as the default containerized deployment does it.
 
 \subsection{Memory limit}
+\label{subsec:memory}
 We limited the memory usage of \ident{ovs-vswitchd}, leaving the CPU time unlimited. We used the default values for the memory limit, leaving us with the following configuration of the OVS container:
 
 \begin{verbatim}
@@ -324,6 +350,7 @@ Our theory is that the crash happens during the revalidator dump phase, when \id
 The decreased flow limit in the configuration of OVS does not help much to prevent crashes, because we can inject too many flows in between the revalidator thread runs (we can inject about 100k flow rules in 500ms, \ident{ovs-vswitch} crashes even with less).
 
 \subsection{CPU limit}
+\label{subsec:cpu-limit}
 
 When CPU bound, \ident{ovs-vswitchd} does not crash. It tries to do the opposite and \href{https://github.com/openvswitch/ovs/blob/e3ba0be48ca457ab3a1c9f1e3522e82218eca0f9/ofproto/ofproto-dpif-upcall.c\#L1031-L1041}{dynamically change the datapath's flow rule limit} based on the revalidator thread's performance:
 
@@ -363,6 +390,7 @@ We can see the effect of this code in \cref{fig:packet-flood-limited}. The red d
 The extremely high round-trip times can be explained by the upcall buffer queues. When the revalidator threads and other tasks use most of the available resources, the handler threads might not get scheduled and the packets in upcalls are buffered until the handler threads run again.
 
 \paragraph{Crashes}
+\label{par:cpu-crashes}
 Surprisingly, \ident{ovs-vswitchd} also crashes if we flood the system with packets without any limit (i.e. roughly 210k packets per second). A possible explanation could be overflow somewhere in the handler thread queues, but this is a complete guess as there are no log messages left.
 
 \subsection{Overloading \ident{ovs-vswitchd} without resource limits}
