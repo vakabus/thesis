@@ -57,7 +57,6 @@ The third RTT measurement behaves as expected by our hypothesis. We shortly expe
 
 \section{Cost of an upcall}
 \label{res:upcall-cost}
-\todo{this section is not great... Improve...}
 
 \paragraph{Upcall processing cost}
 As discussed in \cref{chap:design}, the round trip time increase can be attributed to the cost of upcall processing. In the previous section, we noticed an increased latency with the second RTT measurement, possibly a cache miss in the kernel datapath.  We can estimate the cost of an upcall using this data. We calculated the difference between the first and the second ping measurements and assume the result is the lower bound for the upcall cost. Either our hypothesis about the cache miss is correct. Then the difference would be exactly the time spent processing the upcall. Or, we are wrong and the higher second ping latencies are caused by some additional factor which is not normally present. In that case, the upcall cost would be certainly equal to or higher than our result. We used only the data points with above $10.5$ second delay since the last measurement.
@@ -161,7 +160,7 @@ type                : ""
 up                  : true
 \end{verbatim}
 
-Quoting the OVN documentation, section about the port security option\footnote{The documentation calls it a column, because the configuration is stored in a database column}: \todo{link to https://www.man7.org/linux/man-pages/man5/ovn-nb.5.html}
+Quoting the OVN documentation \cite{OVNNBMan}, a section about the port security option\footnote{The documentation calls it a column because the configuration is stored in a database column}:
 
 \begin{quote}
     This column controls the addresses from which the host
@@ -228,7 +227,7 @@ Either way, we expect that IPv6 ND packets are also a potential problem and they
 \end{figure}
 
 \paragraph{Flow table size}
-\Cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k} show recorded behavior of \ident{ovs-vswitchd} when stressed with significant number of upcalls. Assuming the 10-second flow rule timeout would be the only criteria for evicting flow rules, the flow tables should have reached 500k and 150k flow rules respectively. However, \ident{ovs-vswitchd} has a \href{https://github.com/openvswitch/ovs/blob/859071224c590207ca5e1f8723ffdef72ef7b512/ofproto/ofproto.h\#L310}{default limit of 200k flow rules} in the flow table which explains the lower-than-expected table size in \cref{fig:plot-packet-flood-bare-50k}. Moreso, the flow table size limit is dynamic based on measured system performance\todo{link to the future} and 200k is only a hard limit beyond which the table will never grow. The dynamic increase of the flow limit until the hard limit is reached is visible at the beginning of \cref{fig:plot-packet-flood-bare-50k}.
+\Cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k} show recorded behavior of \ident{ovs-vswitchd} when stressed with significant number of upcalls. Assuming the 10-second flow rule timeout would be the only criteria for evicting flow rules, the flow tables should have reached 500k and 150k flow rules respectively. However, \ident{ovs-vswitchd} has a \href{https://github.com/openvswitch/ovs/blob/859071224c590207ca5e1f8723ffdef72ef7b512/ofproto/ofproto.h\#L310}{default limit of 200k flow rules} in the flow table which explains the lower-than-expected table size in \cref{fig:plot-packet-flood-bare-50k}. Moreso, the flow table size limit is dynamic based on measured system performance (more detail in \cref{subsec:cpu-limit}) and 200k is only a hard limit beyond which the table will never grow. The dynamic increase of the flow limit until the hard limit is reached is visible at the beginning of \cref{fig:plot-packet-flood-bare-50k}.
 
 In both experiments, the flow table size fluctuates. With fewer upcalls, when only the timeout is at play, the fluctuations are small and can be explained by periodic timeout enforcement in the revalidator threads in \ident{ovs-vswitchd}. When the flow table size hits the 200k limit, an additional regulatory mechanism in the revalidator threads activates. Quoting a comment\footnote{\url{https://github.com/openvswitch/ovs/blob/474a179aff6c4199d8007910e3f79f000af9d659/ofproto/ofproto-dpif-upcall.c\#L2771-L2782}} from OVS's source code:
 
@@ -256,7 +255,7 @@ Whenever our stress tool runs, the red bar becomes saturated and dense. Our tool
 \paragraph{System load}
 Because our packet flooding tool is a single-threaded application, it directly contributes to the load averages only by a value of 1 or less. However, we observe a significantly higher load average in both recorded experiments, in \cref{fig:plot-packet-flood-bare-50k} and in \cref{fig:plot-packet-flood-bare-15k}. Except for our running experiment, the system is idle. Hence we attribute the additional system load to OVS. As we discussed before in \cref{subsec:ovs-tasks}, OVS uses multiple threads during normal operation. By default, the revalidator threads iterate over the whole flow table every 500 \si{\milli\second} and command the kernel to delete flow rules. The upcall handlers continuously translate OpenFlow rules to datapath rules and command the kernel to insert new flow rules. All of this busy work causes the extra system load.
 
-Worryingly though, the additional system load is not attributed to the process causing it. In Kubernetes, a container can have a \href{https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/}{resource limits assigned}. Flooding the system with upcalls from a resource-limited container would allow it to stress the system beyond its allowance. 
+Worryingly though, the additional system load is not attributed to the process causing it. In Kubernetes, a container can have a resource limits \cite{KubernetesResourceManagement}. Flooding the system with upcalls from a resource-limited container would allow it to stress the system beyond its allowance. 
 
 \paragraph{Memory usage}
 \label{par:memory-usage}
@@ -340,11 +339,10 @@ ovs-vsctl set Open_vSwitch . other_config:flow-limit=10000
 
 The limit helps and when the upcall frequency is not too high (double or triple the limit), everything works. However, once we flood the network with even more packets, the flow limit is overshot and \ident{ovs-vswitchd} again crashes.
 
-Our theory is that the crash happens during the revalidator dump phase, when \ident{ovs-vswitchd} makes a copy of all in-kernel flow rules in the userspace. This allocates more memory than allowed and the container is subsequently terminated:
+Our theory is that the crash happens during the revalidator dump phase, when \ident{ovs-vswitchd} makes a copy of all in-kernel flow rules in the userspace. This allocates more memory than allowed and the container is subsequently terminated. Quoting Kubernetes Documentation \cite{KubeMemoryLimits}:
 
 \begin{quote}
     A Container can exceed its memory request if the Node has memory available. But a Container is not allowed to use more than its memory limit. If a Container allocates more memory than its limit, the Container becomes a candidate for termination. If the Container continues to consume memory beyond its limit, the Container is terminated. If a terminated Container can be restarted, the kubelet restarts it, as with any other type of runtime failure.
-    \todo{link source https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/}
 \end{quote}
 
 The decreased flow limit in the configuration of OVS does not help much to prevent crashes, because we can inject too many flows in between the revalidator thread runs (we can inject about 100k flow rules in 500ms, \ident{ovs-vswitch} crashes even with less).
@@ -352,7 +350,7 @@ The decreased flow limit in the configuration of OVS does not help much to preve
 \subsection{CPU limit}
 \label{subsec:cpu-limit}
 
-When CPU bound, \ident{ovs-vswitchd} does not crash. It tries to do the opposite and \href{https://github.com/openvswitch/ovs/blob/e3ba0be48ca457ab3a1c9f1e3522e82218eca0f9/ofproto/ofproto-dpif-upcall.c\#L1031-L1041}{dynamically change the datapath's flow rule limit} based on the revalidator thread's performance:
+When CPU bound, \ident{ovs-vswitchd} does not crash./todo{contradiction with the last paragraph, reword} It tries to do the opposite and \href{https://github.com/openvswitch/ovs/blob/e3ba0be48ca457ab3a1c9f1e3522e82218eca0f9/ofproto/ofproto-dpif-upcall.c\#L1031-L1041}{dynamically change the datapath's flow rule limit} based on the revalidator thread's performance:
 
 \begin{verbatim}
 duration = MAX(time_msec() - start_time, 1);
@@ -384,14 +382,14 @@ We can see the effect of this code in \cref{fig:packet-flood-limited}. The red d
     \item Memory usage stays almost constant.
     \item Load average (1 minute) peaks at the value 2\todo{this is weird, can we get a better run?}, but stays below 1 most of the time.
     \item The size of the datapath flow table varies a lot more. We can see the same higher frequency variations as before, but now they are combined with lower frequency variations created by the dynamically changing flow limit.
-    \item Latency measurements are added to the plot (beware of the unusual units). They are the same as when we talked about latency before, now combined in a single experiment. The highest round-trip-time observed is around 10 seconds long. Sometimes, sending a packet completely fails (indicated by thicker dots below the number line).
+    \item Latency measurements are added to the plot (beware of the unusual units). They are the same as when we talked about latency before, now combined in a single experiment. The highest round-trip time observed is around 10 seconds long. Sometimes, sending a packet completely fails (indicated by thicker dots below the number line).
 \end{itemize}
 
 The extremely high round-trip times can be explained by the upcall buffer queues. When the revalidator threads and other tasks use most of the available resources, the handler threads might not get scheduled and the packets in upcalls are buffered until the handler threads run again.
 
 \paragraph{Crashes}
 \label{par:cpu-crashes}
-Surprisingly, \ident{ovs-vswitchd} also crashes if we flood the system with packets without any limit (i.e. roughly 210k packets per second). A possible explanation could be overflow somewhere in the handler thread queues, but this is a complete guess as there are no log messages left.
+Surprisingly, \ident{ovs-vswitchd} also crashes if we flood the system with packets without any limit (i.e. roughly 210k packets per second). A possible explanation could be overflow somewhere in the handler thread queues, but this is a complete guess as there are no log messages left./todo{check dmesg for OOM killer logs}
 
 \subsection{Overloading \ident{ovs-vswitchd} without resource limits}
 

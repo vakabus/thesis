@@ -16,19 +16,20 @@
 
     Forwarding tables & Network switches use forwarding tables to decide where to forward a received packet. In Ethernet, the forwarding tables consist of MAC address to network port mapping. SDNs generalized forwarding tables so that they can match packets in any way deemed useful, most commonly on any header values from the second, third, and fourth layers of the OSI model. \\
 
-    OpenFlow & Network configuration protocol used between an SDN controller and SDN switches. OpenFlow allows remote configuration of forwarding tables in network switches. Details in \cref{sec:openflow}
+    OpenFlow & Network configuration protocol used between an SDN controller and SDN switches. OpenFlow allows remote configuration of forwarding tables in network switches. Details in \cref{sec:openflow} \\
+
+    RTT & round-trip time  \\
 
 \end{tabular}
 
 \section{Software-defined networking (SDN)}
 \label{sec:sdn}
 
-\todo{make a proper quotation for the schema in \cref{fig:sdn-schema} \url{https://opennetworking.org/wp-content/uploads/2013/02/TR_SDN_ARCH_1.0_06062014.pdf}}
 
 \begin{figure}
     \centering
     \includegraphics[width=.6\linewidth]{img/sdn_basic_schema.pdf}
-    \caption{A schema of basic SDN components.}
+    \caption{A schema of basic SDN components (originally from \cite{SdnArch}).}
     \label{fig:sdn-schema}
 \end{figure}
 
@@ -37,7 +38,8 @@
 \section{OpenFlow}
 \label{sec:openflow}
 
-\emph{OpenFlow}\footnote{\url{https://opennetworking.org/sdn-resources/openflow-switch-specification/}} is a protocol for configuring packet forwarders (generalized switches). OpenFlow is the de-facto standard protocol for the southbound interface in an SDN.
+% \footnote{\url{https://opennetworking.org/sdn-resources/openflow-switch-specification/}}
+\emph{OpenFlow} \cite{OFSpec} is a protocol for configuring packet forwarders (generalized switches). OpenFlow is the de-facto standard protocol for the southbound interface in an SDN.
 
 In OpenFlow, there are multiple forwarding tables for every network switch. Every table is identified with a number and contains a set of rules with priorities. Each rule consists of matching criteria, usage statistics and actions. The following is an example of an OpenFlow rule dumped from a running Open vSwitch using the \ident{ovs-ofctl dump-flows \$BRIDGE} command:
 
@@ -57,7 +59,7 @@ In addition to the externally configured flow rules, the forwarding tables also 
 \section{Open vSwitch}
 \label{sec:ovs}
 
-\emph{Open vSwitch} (OVS) is a multilayer virtual switch. OVS runs as a software switch on all major platforms and supports hardware offload for its data processing layers. The supported OpenFlow protocol allows any SDNs to use OVS in its infrastructure layer.
+\emph{Open vSwitch} (OVS) \cite{OVSWeb} is a multilayer virtual switch. OVS runs as a software switch on all major platforms and supports hardware offload for its data processing layers. The supported OpenFlow protocol allows any SDNs to use OVS in its infrastructure layer.
 
 The internal architecture of OVS mirrors the SDN architecture (see \cref{fig:ovs-arch-schema}) with a control plane and data plane. \ident{ovs-vswitchd} is the OVS's control process. \ident{ovs-vswitchd} communicates via the OpenFlow protocol and stores the configured flow rules in a purpose-built Open vSwitch Database (OVSDB). Alternatively, the database can be accessed externally, and OVS can be configured without using the OpenFlow wire protocol.
 
@@ -86,9 +88,7 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
 \section{Open Virtual Network}
 \label{sec:ovn}
 
-\todo{link to documentation \url{https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/13/html/networking_with_open_virtual_network/open_virtual_network_ovn}}
-
-\emph{Open Virtual Network} (OVN) is an SDN combining Open vSwitch with network tunnels (by default GENEVE) for its infrastructure layer. Applications communicate with OVN through the \ident{northdb}, an OVSDB instance storing high-level network configuration in terms of traditional networking concepts. The \ident{ovn-northd} process translates the configuration into logical datapath flows and stores the result in the \ident{southdb} OVSDB instance. The \ident{ovn-controller} then distributes the flows from the \ident{southdb} into individual OVS databases.
+\emph{Open Virtual Network} (OVN) \cite{OpenStackOVNDocs} is an SDN combining Open vSwitch with network tunnels (by default GENEVE) for its infrastructure layer. Applications communicate with OVN through the \ident{northdb}, an OVSDB instance storing high-level network configuration in terms of traditional networking concepts. The \ident{ovn-northd} process translates the configuration into logical datapath flows and stores the result in the \ident{southdb} OVSDB instance. The \ident{ovn-controller} then distributes the flows from the \ident{southdb} into individual OVS databases.
 
 \begin{table}[h!]
     \begin{center}

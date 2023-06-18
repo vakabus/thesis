@@ -1,7 +1,7 @@
 \chapter{Experiment design}
 \label{chap:design}
 
-As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore, some packets require much more processing and can slow the system down. Eelco Chaudron investigated the cost of an upcall in OVS\todo{link source} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{700}{\us} and \qty{10}{\ms} extra compared to the fast path.
+As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore, some packets require much more processing and can slow the system down. Eelco Chaudron investigated the cost of an upcall in OVS \cite{UpcallCost} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{150}{\us} and \qty{10}{\ms} extra compared to the fast path.
 
 Based on this knowledge, we tried to answer the following questions about OVS internals:
 
@@ -69,7 +69,7 @@ Results of this experiment can be found in \cref{res:eviction-timeout}.
 \section{Cost of an upcall}
 \label{design:upcall-cost}
 
-Eelco Chaudron's research into the cost of an upcall used eBPF to measure upcall cost directly in the kernel. However, as we saw in the previous section, upcalls have visible effects outside of the kernel.
+Eelco Chaudron investigated the cost of an upcall using eBPF to measure upcall cost directly in the kernel \cite{UpcallCost}. However, as we saw in the previous section, upcalls have visible effects outside of the kernel and we can measure them directly.
 
 The unchanged experiment devised in the previous section provides us with a direct measurement of the observable upcall effect. In each data point, we can subtract the two round-trip-times to get an insight into how much time upcall costs.
 

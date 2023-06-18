@@ -63,11 +63,11 @@ In \cref{par:cpu-crashes}, we noticed that \ident{ovs-vswitchd} crashes under ex
 In \cref{subsec:ethernet} we have found a design flaw in OVS that prevents OVS from effectively blocking traffic. OVS allows only positive matches in its datapath flow rules. Negative wildcard matches can currently be handled only in userspace. Out of the issues we have discovered, we believe that this is the most complicated one to fix. 
 
 \subsubsection{Fix without changing the kernel module}
-Changing the kernel module might be undesirable because a similar interface is also implemented in hardware.\todo{link https://docs.openstack.org/neutron/rocky/admin/config-ovs-offload.html} Additionally, the hardware offloaded processing is very likely to have the same issue and we want to prevent upcall generation there as well. Therefore, we might want to generate ordinary datapath flow rules which would drop the invalid packets. This is however impossible without eliminating the possibility of an exponential growth of the number of flow rules.
+Changing the kernel module might be undesirable because a similar interface is also implemented in hardware \cite{OVSHW}. Additionally, the hardware offloaded processing is very likely to have the same issue and we want to prevent upcall generation there as well. Therefore, we might want to generate ordinary datapath flow rules which would drop the invalid packets. This is however impossible without eliminating the possibility of an exponential growth of the number of flow rules.
 
 In general, let us assume an OpenFlow table with a default drop rule and several exact match rules accepting the packet (e.g. resubmitting it to a different table). Every rule matching a packet is equivalent to a logic formula where the variables represent bits of the flow key. Specifically, the formula is a conjunction. The whole table can be therefore expressed as a single DNF formula matching valid packets. Let us call the formula $F$.
 
-Now, let us express the formula matching packets that should be dropped. $\neg F$ is true for all invalid packets. However, it is not in DNF anymore, so we cannot translate it directly back. Using De Morgan's laws, we can rewrite $\neg F$ as a CNF formula of the same length. Then, we have to convert it back to DNF. However, the conversion of a CNF formula to a DNF formula could potentially lead to exponential growth in the number of conjunctions. Therefore, potentially exponential explosion in the number of rules we need to drop the packets.
+Now, let us express the formula matching packets that should be dropped. $\neg F$ is true for all invalid packets. However, it is not in DNF anymore, so we cannot translate it directly back. Using De Morgan's laws, we can rewrite $\neg F$ as a CNF formula of the same length. Then, we have to convert it back to DNF. However, the conversion of a CNF formula to a DNF formula could potentially lead to exponential growth in the number of clauses. Therefore, a potentially exponential explosion in the number of rules we need to drop the packets.
 
 It might still be practical to use this technique to implement simple port security and allow only a single MAC address on a switch port. That would require only 49 rules - 48 to drop invalid packets, a single rule for recirculation of valid packets. However, expressing anything more complicated is probably impractical due to drops in performance.
 
@@ -76,7 +76,7 @@ It might still be practical to use this technique to implement simple port secur
 If we allow ourselves to change the kernel module, the fix can be implemented relatively easily. We could leave the processing as it is and add packet filtering before we make an upcall. For example, we could add a second, negative, flow table. Any packet it would match would get dropped. The used flow key could stay the same, only the kernel interface would double in size.
 
 
-\section{recommendation for public cloud providers}
+\section{Recommendation for public cloud providers}
 
 Our findings certainly impact public cloud providers using OVS. We would recommend at the very least:
 
