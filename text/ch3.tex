@@ -82,11 +82,11 @@ Our results can be found in \cref{res:upcall-cost}.
 
 To stress-test the slow path, we have to be able to generate upcalls consistently. We have to find types of packets that will repeatedly miss all installed flow rules in the OVS datapath. We have a choice between a static analysis and a dynamic analysis of OVS.
 
-We chose to approach the problem using dynamic analysis. We decided on dynamic analysis instead of static analysis because the results depend on OVS, the whole SDN, and its configuration. For static analysis, the search space is just too large. Also, the dynamic analysis tooling can be later reused on different OVS deployment than ours.
+We chose to approach the problem using dynamic analysis. We decided on dynamic analysis instead of static analysis because the results depend on OVS, the whole SDN, and its configuration. For static analysis, the search space is just too large. Also, the dynamic analysis tooling can be later reused on different OVS deployments than ours.
 
 Our experiment sends varying packets in batches based on their type and monitors the upcalls and flow table changes using kprobes in the kernel and user statically-defined tracing (USDT) probes in \ident{ovs-vswitchd}.
 
-The flow rules in OVS datapaths use the \ident{struct sw\_flow\_key}\todo{link} to represent the flow key. For every field of that structure, our measurement tool sends 1000 packets with the corresponding packet header field randomized and everything else fixed at arbitrary values.
+The flow rules in OVS datapaths use the \href{https://elixir.bootlin.com/linux/v6.2.15/source/net/openvswitch/flow.h\#L75}{\ident{struct sw\_flow\_key}} to represent the flow key. For every field of that structure, our measurement tool sends 1000 packets with the corresponding packet header field randomized and everything else fixed at arbitrary values.
 
 We used Scapy to generate the packets. For example, the code to generate random TTL values in an IPv4 packet looks like this:
 

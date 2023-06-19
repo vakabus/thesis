@@ -52,14 +52,14 @@ actions=load:0x8004->NXM_NX_REG15[],resubmit(,37)
 
 The third line in the example specifies the rule criteria. Generally, the matching criteria can include masks for header values from Ethernet, IP, transport layer protocols (TCP, UDP, ...), and more depending on the exact version of the OpenFlow protocol. The criteria can check for an exact value match or with a wildcard.
 
-The action in a flow rule can forward the packet to a port, change a value of a header field, store an arbitrary value as metadata accompanying the packet in further processing, resubmit the packet to a different table and more. For the complete list of actions, see the OpenFlow specification \todo{quote} or the \ident{ovs-actions} manpage.
+The action in a flow rule can forward the packet to a port, change a value of a header field, store an arbitrary value as metadata accompanying the packet in further processing, resubmit the packet to a different table and more. For the complete list of actions, see the OpenFlow specification \cite{OFSpec} or the \ident{ovs-actions} manpage \cite{OVSActionsMan}.
 
 In addition to the externally configured flow rules, the forwarding tables also contain statistics updated every time the flow rule is used. The OpenFlow controller can then query switches for these statistics.
 
 \section{Open vSwitch}
 \label{sec:ovs}
 
-\emph{Open vSwitch} (OVS) \cite{OVSWeb} is a multilayer virtual switch. OVS runs as a software switch on all major platforms and supports hardware offload for its data processing layers. The supported OpenFlow protocol allows any SDNs to use OVS in its infrastructure layer.
+\emph{Open vSwitch} (OVS) \cite{OVSWeb} \cite{OVSSource} \cite{KernelSource} is a multilayer virtual switch. OVS runs as a software switch on all major platforms and supports hardware offload for its data processing layers. The supported OpenFlow protocol allows any SDNs to use OVS in its infrastructure layer.
 
 The internal architecture of OVS mirrors the SDN architecture (see \cref{fig:ovs-arch-schema}) with a control plane and data plane. \ident{ovs-vswitchd} is the OVS's control process. \ident{ovs-vswitchd} communicates via the OpenFlow protocol and stores the configured flow rules in a purpose-built Open vSwitch Database (OVSDB). Alternatively, the database can be accessed externally, and OVS can be configured without using the OpenFlow wire protocol.
 
@@ -88,7 +88,7 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
 \section{Open Virtual Network}
 \label{sec:ovn}
 
-\emph{Open Virtual Network} (OVN) \cite{OpenStackOVNDocs} is an SDN combining Open vSwitch with network tunnels (by default GENEVE) for its infrastructure layer. Applications communicate with OVN through the \ident{northdb}, an OVSDB instance storing high-level network configuration in terms of traditional networking concepts. The \ident{ovn-northd} process translates the configuration into logical datapath flows and stores the result in the \ident{southdb} OVSDB instance. The \ident{ovn-controller} then distributes the flows from the \ident{southdb} into individual OVS databases.
+\emph{Open Virtual Network} (OVN) \cite{OpenStackOVNDocs} \cite{OVNSource} is an SDN combining Open vSwitch with network tunnels (by default GENEVE) for its infrastructure layer. Applications communicate with OVN through the \ident{northdb}, an OVSDB instance storing high-level network configuration in terms of traditional networking concepts. The \ident{ovn-northd} process translates the configuration into logical datapath flows and stores the result in the \ident{southdb} OVSDB instance. The \ident{ovn-controller} then distributes the flows from the \ident{southdb} into individual OVS databases.
 
 \begin{table}[h!]
     \begin{center}
@@ -111,7 +111,7 @@ A \emph{datapath} is the lowest component of OVS physically forwarding packets b
 
 \section{OVN-Kubernetes}
 
-\emph{OVN-Kubernetes}\footnote{\url{https://github.com/ovn-org/ovn-kubernetes}} is a Kubernetes CNI plugin using OVN in the background. OVN-Kubernetes configures OVN and OVS on all cluster nodes and translates network reconfiguration requests from the CNI API into configuration changes for OVN.
+\emph{OVN-Kubernetes} \cite{OVNKubeSource} is a Kubernetes CNI plugin using OVN in the background. OVN-Kubernetes configures OVN and OVS on all cluster nodes and translates network reconfiguration requests from the CNI API into configuration changes for OVN.
 
 \section{Open vSwitch Datapaths}
 \label{sec:ovs-datapath}
