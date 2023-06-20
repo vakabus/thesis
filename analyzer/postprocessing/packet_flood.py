@@ -28,7 +28,8 @@ print("Data loading finished, rendering plots...")
 
 
 # figure based on time
-fig = plt.figure("time")
+fig = plt.figure("time", dpi=600, figsize=(13,8))
+#fig = plt.figure("time")
 ax: plt.Axes = fig.subplots()
 ax.scatter(trace_upcalls['ts'], random_data, label="upcalls (y-value does not mean anything)", marker=".", color="red", alpha=0.1)
 #ax.scatter(vswitchd["ts"], vswitchd["vswitchd_threads"] * 10000, label="vswitchd threads * 10000", color="green", marker=".")
@@ -77,8 +78,8 @@ ax.hlines(usdt_flow_limit['flow_limit'], usdt_flow_limit['ts'] - usdt_flow_limit
 
 
 ax.legend(loc='upper right')
-fig.tight_layout()
-ax.set_xlabel("sec")
+#fig.tight_layout()
+ax.set_xlabel("seconds")
 
 """
 fig = plt.figure("resources")
@@ -90,5 +91,5 @@ ax.set_xlabel("ns (CLOCK_MONOTONIC)")
 ax.set_ylabel("count")
 """
 
-
-plt.show()
+plt.savefig("/tmp/plot.png", bbox_inches="tight")
+#plt.show()

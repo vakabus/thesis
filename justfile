@@ -225,3 +225,5 @@ show-text:
 
 publish-text: text
     rsync text/thesis.pdf mail:/home/user-data/www/vsq.cz/thesis.pdf
+    rsync text/attachment.tar.gz mail:/home/user-data/www/vsq.cz/attachment.tar.gz
+    

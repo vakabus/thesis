@@ -60,15 +60,15 @@ print(set(upcalls_per_type['test']).symmetric_difference(set(upcalls_per_type_fi
 
 
 # bar chart
-fig = plt.figure("tests")
+fig = plt.figure("tests", figsize=(10, 18), dpi=600)
 ax: plt.Axes = fig.subplots()
-pos = np.arange(len(upcalls_per_type))
-ax.bar(pos, upcalls_per_type['count'], align='center', alpha=0.5, label="all upcalls during measurements")
+pos = list(reversed(range(len(upcalls_per_type))))
+ax.barh(pos, upcalls_per_type['count'], align='center', alpha=0.5, label="number of upcalls during the time slot")
 #ax.bar(pos, upcalls_per_type_filtered['count'], align='center', alpha=0.5, label="upcalls during measurements (direct cause was us)")
-ax.set_xticks(pos, upcalls_per_type["test"], rotation='vertical')
+ax.set_yticks(pos, upcalls_per_type["test"])
 ax.legend()
-ax.set_ylabel("number of upcalls")
-ax.hlines(1000, xmin=0, xmax=len(upcalls_per_type), linestyles="dotted", color="red")
+ax.set_xlabel("number of upcalls")
+ax.vlines(1000, ymin=0, ymax=len(upcalls_per_type), linestyles="dotted", color="red")
 
 
 
@@ -83,8 +83,9 @@ ax.hlines(1000, xmin=0, xmax=len(upcalls_per_type), linestyles="dotted", color="
 #plt.scatter(df["ns_monotonic"], df["masks_hit_per_pkt"], label="masks hit per pkt")
 
 
+fig.savefig('/tmp/plot.pdf', bbox_inches="tight")
 
 
 
-
+exit(0)
 plt.show()

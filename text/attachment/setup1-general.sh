@@ -1,0 +1,1 @@
+../../cluster_tools/install-scripts/fedora36-general-init.sh

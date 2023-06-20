@@ -1,0 +1,20 @@
+\chapter{\ident{ovs-vswitchd} container image}
+\label{chap:ovs-mod}
+
+\section{Build}
+
+There is a script \ident{build\_ovs\_container.sh} attached to this thesis. Running this script will download and compile OVS, OVN and OVN-Kubernetes and at the end, wrap the result into a container usable for deployment into a cluster. We recommend reading the script first before running it. It is not long and it might be desirable to tweak it.
+
+To run the script, make sure that you have these dependencies installed on your system:
+
+\begin{itemize}
+    \item \ident{podman}, ideally configured for rootless operation
+    \item \ident {git}
+    \item \ident{go} compiler
+\end{itemize}
+
+The script creates a container image by default called \ident{ovn-kube-f:latest}. To use it further in the cluster, push it to an accessible container registry\footnote{We run a private registry for this purpose.} and note its fully qualified name.
+
+\section{Our changes to OVS}
+
+All changes we have made to OVS can be seen in the \ident{ovs-usdt-probes.patch} file. We have added only new USDT probes. They are compiled only as \ident{nop} instructions and should not significantly impact the performance unless used.

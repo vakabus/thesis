@@ -2,6 +2,7 @@
 \label{chap:discussion}
 
 \section{Possible OVS improvements}
+\label{sec:improv}
 
 Throughout our experiments, we have identified several areas in OVS that we believe could be immediately improved upon:
 
@@ -15,7 +16,6 @@ Other areas require better investigation before they can be improved, but we bel
 
 \begin{itemize}
     \item Gracefully handle out-of-memory conditions
-    \item Diagnose and try to prevent a crash of \ident{ovs-vswitchd} when it is CPU limited
     \item Investigate how best to prevent upcalls when using OVS as a firewall
 \end{itemize}
 
@@ -53,11 +53,6 @@ In \cref{subsec:memory}, we observed crashes of \ident{ovs-vswitchd} when we lim
 
 While nice in theory, we think that a practical implementation would require better insight into how memory is allocated and used. Therefore improvement of this requires further research.
 
-
-\subsection{Crashes when \ident{ovs-vswitchd} is CPU-limited}
-
-In \cref{par:cpu-crashes}, we noticed that \ident{ovs-vswitchd} crashes under extreme stress when CPU-limited. We do not know what is the cause, so we can only suggest that more research should be done.
-
 \subsection{OVS as a firewall}
 
 In \cref{subsec:ethernet} we have found a design flaw in OVS that prevents OVS from effectively blocking traffic. OVS allows only positive matches in its datapath flow rules. Negative wildcard matches can currently be handled only in userspace. Out of the issues we have discovered, we believe that this is the most complicated one to fix. 
@@ -87,8 +82,15 @@ Our findings certainly impact public cloud providers using OVS. We would recomme
 
 In case the cloud provider uses OVS for firewalling, we would recommend switching to some other technology. OVS is in our opinion currently unsuitable for blocking undesirable traffic.
 
-\section{Open questions}
 
-\xxx{nice to have, but let's worry about it later}
-\todo{what are the things we found and do not know the answer to?}
+\section{Future work}
+
+We suggested practical improvements to OVS in \cref{sec:improv}. There is also still space for more theoretical and experimental research even though we do not know about any directions likely to yield significant results. We did not pursue investigations into the following areas and they may be a potential topic for additional research:
+
+\begin{itemize}
+    \item We have not verified the translation mechanism between OpenFlow and datapath flow rules in \ident{ovs-vswitchd} for optimality. There is a possibility that inefficiencies in the translation mechanism could be abused to generate upcalls similar to our results.
+
+    \item Similarly, we have not explored what happens during network reconfiguration and whether the transition can cause performance issues.
+\end{itemize}
+
 

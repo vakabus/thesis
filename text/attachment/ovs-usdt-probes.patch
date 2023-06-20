@@ -1,0 +1,116 @@
+From 1816822a13d3e0eca9b4804d26f7a305a5505c72 Mon Sep 17 00:00:00 2001
+From: Vasek Sraier <git@vakabus.cz>
+Date: Thu, 20 Apr 2023 19:40:15 +0200
+Subject: [PATCH] revalidator: added USDT probes
+
+---
+ ofproto/ofproto-dpif-upcall.c | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/ofproto/ofproto-dpif-upcall.c b/ofproto/ofproto-dpif-upcall.c
+index 89df92242..054ef7dd0 100644
+--- a/ofproto/ofproto-dpif-upcall.c
++++ b/ofproto/ofproto-dpif-upcall.c
+@@ -44,6 +44,7 @@
+ #include "unixctl.h"
+ #include "openvswitch/vlog.h"
+ #include "lib/netdev-provider.h"
++#include "openvswitch/usdt-probes.h"
+ 
+ #define UPCALL_MAX_BATCH 64
+ #define REVALIDATE_MAX_BATCH 50
+@@ -951,6 +952,7 @@ udpif_run_flow_rebalance(struct udpif *udpif)
+ static void *
+ udpif_revalidator(void *arg)
+ {
++    OVS_USDT_PROBE(udpif_revalidator, entry);
+     /* Used by all revalidators. */
+     struct revalidator *revalidator = arg;
+     struct udpif *udpif = revalidator->udpif;
+@@ -963,6 +965,7 @@ udpif_revalidator(void *arg)
+ 
+     revalidator->id = ovsthread_id_self();
+     for (;;) {
++        OVS_USDT_PROBE(udpif_revalidator, loop_entry);
+         if (leader) {
+             uint64_t reval_seq;
+ 
+@@ -997,22 +1000,34 @@ udpif_revalidator(void *arg)
+         }
+ 
+         /* Wait for the leader to start the flow dump. */
++        OVS_USDT_PROBE(udpif_revalidator, barrier_first_entry);
+         ovs_barrier_block(&udpif->reval_barrier);
+         if (udpif->pause) {
+             revalidator_pause(revalidator);
+         }
++        OVS_USDT_PROBE(udpif_revalidator, barrier_first_exit);
++
+ 
+         if (udpif->reval_exit) {
+             break;
+         }
++        OVS_USDT_PROBE(udpif_revalidator, dump_entry);
+         revalidate(revalidator);
++        OVS_USDT_PROBE(udpif_revalidator, dump_exit);
+ 
+         /* Wait for all flows to have been dumped before we garbage collect. */
++        OVS_USDT_PROBE(udpif_revalidator, barrier_second_entry);
+         ovs_barrier_block(&udpif->reval_barrier);
++        OVS_USDT_PROBE(udpif_revalidator, barrier_second_exit);
++        
++        OVS_USDT_PROBE(udpif_revalidator, sweep_entry);
+         revalidator_sweep(revalidator);
++        OVS_USDT_PROBE(udpif_revalidator, sweep_exit);
+ 
+         /* Wait for all revalidators to finish garbage collection. */
++        OVS_USDT_PROBE(udpif_revalidator, barrier_third_entry);
+         ovs_barrier_block(&udpif->reval_barrier);
++        OVS_USDT_PROBE(udpif_revalidator, barrier_third_exit);
+ 
+         if (leader) {
+             unsigned int flow_limit;
+@@ -1038,12 +1053,14 @@ udpif_revalidator(void *arg)
+             }
+             flow_limit = MIN(ofproto_flow_limit, MAX(flow_limit, 1000));
+             atomic_store_relaxed(&udpif->flow_limit, flow_limit);
++            OVS_USDT_PROBE(udpif_revalidator, new_flow_limit, flow_limit, duration, n_flows);
+ 
+             if (duration > 2000) {
+                 VLOG_INFO("Spent an unreasonably long %lldms dumping flows",
+                           duration);
+             }
+ 
++            OVS_USDT_PROBE(udpif_revalidator, waiting_block_entry);
+             poll_timer_wait_until(start_time + MIN(ofproto_max_idle,
+                                                    ofproto_max_revalidator));
+             seq_wait(udpif->reval_seq, last_reval_seq);
+@@ -1065,9 +1082,11 @@ udpif_revalidator(void *arg)
+                     poll_block();
+                 }
+             }
++            OVS_USDT_PROBE(udpif_revalidator, waiting_block_exit);
+         }
+     }
+ 
++    OVS_USDT_PROBE(udpif_revalidator, exit);
+     return NULL;
+ }
+ 
+@@ -2752,11 +2771,13 @@ revalidate(struct revalidator *revalidator)
+         n_dp_flows = udpif_get_n_flows(udpif);
+         if (n_dp_flows >= flow_limit) {
+             COVERAGE_INC(upcall_flow_limit_hit);
++            OVS_USDT_PROBE(revalidate, flow_limit_threshold, n_dp_flows, flow_limit);
+         }
+ 
+         kill_them_all = false;
+         kill_all_limit = flow_limit * 2;
+         if (OVS_UNLIKELY(n_dp_flows > kill_all_limit)) {
++            OVS_USDT_PROBE(revalidate, flow_limit_emergency_threshold, n_dp_flows, flow_limit);
+             static struct vlog_rate_limit rlem = VLOG_RATE_LIMIT_INIT(1, 1);
+ 
+             kill_them_all = true;
+-- 
+2.41.0
+

@@ -1,24 +1,6 @@
 
 \chapwithtoc{Introduction}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Introduction should answer the following questions, ideally in this order:
-% \begin{enumerate}
-% \item What is the nature of the problem the thesis is addressing?
-% \item What is the common approach for solving that problem now?
-% \item How this thesis approaches the problem?
-% \item What are the results? Did something improve?
-% \item What can the reader expect in the individual chapters of the thesis?
-% \end{enumerate}
-% 
-% Expected length of the introduction is between 1--4 pages. Longer introductions may require sub-sectioning with appropriate headings --- use \texttt{\textbackslash{}section*} to avoid numbering (with section names like `Motivation' and `Related work'), but try to avoid lengthy discussion of anything specific. Any ``real science'' (definitions, theorems, methods, data) should go into other chapters.
-% \todo{You may notice that this paragraph briefly shows different ``types'' of `quotes' in TeX, and the usage difference between a hyphen (-), en-dash (--) and em-dash (---).}
-% 
-% It is very advisable to skim through a book about scientific English writing before starting the thesis. I can recommend `\citetitle{glasman2010science}' by \citet{glasman2010science}.
-% 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
 % adapted from the thesis assignment
 
 Modern containerized cloud computing systems have complex requirements for their networking backends. Demand for features like seamless cross-data-center networking, multi-tenancy and security policies necessitated the use of the Software Defined Networking (SDN) concept and, by the nature of containerized systems, extensive use of virtualized networks.
@@ -31,7 +13,7 @@ This work explores the performance and scalability characteristics of Open vSwit
 
 We explored methods for stressing the OVS's control plane and discovered several problematic traffic patterns. We measured OVS's behavior under stress and learned that in certain configurations, an attacker can use the discovered inefficiencies for an effective denial of service attack on the local cluster node.
 
-This thesis is divided into several chapters. In the first chapter, we provide descriptions of all relevant technologies, how they interact and how they work internally. The second chapter describes the configuration of our experimental clusters to allow anyone to replicate our findings. We describe our experiments in chapter three and their results in chapter four. The fifth chapter is about our additional discoveries, and the last, sixth, chapter discusses the big picture of our findings. \todo{fix chapter descriptions when everything is finished}
+This thesis is divided into several chapters. In the first chapter, we provide descriptions of all relevant technologies, how they interact and how they work internally. The second chapter describes the configuration of our experimental clusters to allow anyone to replicate our findings. We describe our experiments in chapter three and their results in chapter four. The last, fifth, chapter discusses the impact of our findings and suggests possible improvements.
 
 
 

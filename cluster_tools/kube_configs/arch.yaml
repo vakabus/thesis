@@ -7,7 +7,7 @@ spec:
   hostname: arch
   containers:
   - name: arch
-    image: registry.homelab.vsq.cz/archlinux:latest
+    image: docker.io/archlinux:latest
     command:
       - sleep
       - "infinity"

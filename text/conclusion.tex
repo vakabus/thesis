@@ -1,12 +1,11 @@
 
 \chapwithtoc{Conclusion}
 
-\xxx{not yet written}
+We started our research with the goal of finding traffic patterns causing performance issues in OVS and OVN-Kubernetes. We successfully achieved this goal by discovering OVN's port-security feature, which can be abused to generate an upcall and install a new flow rule for every received packet. We showed that this behavior cannot be easily prevented and that it requires either changes to the kernel module or changes to flow rule generation in \ident{ovs-vswitchd}.
 
-In the conclusion, you should summarize what was achieved by the thesis. In a few paragraphs, try to answer the following:
-\begin{itemize}
-\item Was the problem stated in the introduction solved? (Ideally include a list of successfully achieved goals.)
-\item What is the quality of the result? Is the problem solved for good and the mankind does not need to ever think about it again, or just partially improved upon? (Is the incompleteness caused by overwhelming problem complexity that would be out of thesis scope\todo{This is quite common.}, or any theoretical reasons, such as computational hardness?)
-\item Does the result have any practical applications that improve upon something realistic?
-\item Is there any good future development or research direction that could further improve the results of this thesis? (This is often summarized in a separate subsection called `Future work'.)
-\end{itemize}
+Additionally, using our findings, we stressed OVS with upcalls and discovered, that the default resource limits for OVS in OVN-Kubernetes cause more problems than they prevent. Namely, they lead either to crashes of OVS due to unhandled out-of-memory conditions or complete network denial-of-service when \ident{ovs-vswitchd} is CPU limited. With unconstrained resources, OVS handled the stress test rather well.
+
+Unfortunately, due to the inherent complexity of OVS and software-defined networks in general, we cannot rule out the existence of other performance issues in the OVS's kernel datapath. Especially, we cannot prove that it is not possible to generate different kinds of packets which will reliably generate upcalls. As we have seen with our results, the problem is directly caused by OpenFlow configuration generated with an external tool to OVS (e.g. OVN). While this led us to discover a design flaw in OVS, it might be possible to directly exploit a specific set of OpenFlow rules to generate upcalls and stress OVS in a similar manner.
+
+As a result of our work, we have outlined the possible improvements in \cref{chap:discussion}. We do not know whether our suggestions are directly applicable as improvements, however, at the very least we provide a list of areas in OVS's code base that could be improved.
+

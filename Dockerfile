@@ -34,7 +34,4 @@ RUN INSTALL_PKGS=" \
     dnf install --best --refresh -y --setopt=tsflags=nodocs $INSTALL_PKGS && \
     dnf clean all && rm -rf /var/cache/dnf/*
 
-# Clone OVS Source Code.
-#ARG OVS_REPO=https://github.com/vakabus/ovs.git
-#ARG OVS_BRANCH=branch-3.1
 WORKDIR /root

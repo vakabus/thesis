@@ -49,7 +49,7 @@ print("Data loading finished, rendering plots...")
 
 
 # figure based on time
-fig = plt.figure("time")
+fig = plt.figure("time", dpi=600, figsize=(13,8))
 ax: plt.Axes = fig.subplots()
 ax.scatter(trace_upcalls['ts'], random_data, label="upcalls (y-value does not mean anything)", marker=".", color="red", alpha=0.1)
 #ax.scatter(vswitchd["ts"], vswitchd["vswitchd_threads"] * 10000, label="vswitchd threads * 10000", color="green", marker=".")
@@ -74,6 +74,7 @@ def timing(df: pl.DataFrame) -> pl.DataFrame:
 # vswitchd.lazy().with_columns((pl.col("vswitchd_utime_sec") < 0.25).cast(pl.Int16).cumsum().alias("delim")).groupby(pl.col("delim")).apply(timing, None).collect()
 
 # UDP packets
+udp_rtt_latencies = udp_rtt_latencies.filter(pl.col("latency_ns") < 420_000 )
 ax.scatter(udp_rtt_latencies["ts"], udp_rtt_latencies["latency_ns"] / 1_000, label="UDP packet RTT in us", marker=".", color="green", alpha=0.5)
 ax.hlines(udp_rtt_latencies["latency_ns"] / 1_000, udp_rtt_latencies['ts'], udp_rtt_latencies['ts'] + udp_rtt_latencies['latency_ns'].cast(pl.Float64) / 1_000_000_000, color="green", alpha=0.1)
 #ax.scatter(udp_rtt_dropped["ts"], udp_rtt_dropped["ts"]*0 - 1_000, label="dropped UDP packets", marker="o", color="green", alpha=0.5)
@@ -81,6 +82,7 @@ ax.hlines(-50, STRESSED_INTERVAL[0], STRESSED_INTERVAL[1], colors="blue", linest
 ax.hlines(-50, NON_STRESSED_INTERVAL[0], NON_STRESSED_INTERVAL[1], colors="orange", linestyles="solid", label="sample ranges for non-stressed data")
 
 # ICMP
+icmp_lat = icmp_lat.filter(pl.col("latency_ns") < 420_000 )
 ax.scatter(icmp_lat["ts"], icmp_lat["latency_ns"] / 1_000, label="ICMP RTT in us (ping cmd)", marker=".", color="purple", alpha=0.5)
 ax.hlines(icmp_lat["latency_ns"] / 1_000, icmp_lat['ts'], icmp_lat['ts'] + icmp_lat['latency_ns'].cast(pl.Float64) / 1_000_000_000, color="purple", alpha=0.1)
 #ax.scatter(icmp_err["ts"], icmp_err["ts"] * 0 - 2_000, label="ping cmd error", marker="o", color="purple", alpha=0.5)
@@ -100,8 +102,7 @@ ax.hlines(icmp_lat["latency_ns"] / 1_000, icmp_lat['ts'], icmp_lat['ts'] + icmp_
 
 
 ax.legend(loc='upper right')
-fig.tight_layout()
-ax.set_xlabel("sec")
+ax.set_xlabel("seconds")
 
 """
 fig = plt.figure("resources")
@@ -113,5 +114,5 @@ ax.set_xlabel("ns (CLOCK_MONOTONIC)")
 ax.set_ylabel("count")
 """
 
-
-plt.show()
+plt.savefig("/tmp/plot.png", bbox_inches="tight")
+#plt.show()
