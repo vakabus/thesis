@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
-use csv::{WriterBuilder, Writer};
+use csv::{Writer, WriterBuilder};
 
 use serde::Serialize;
 use std::{
+    fs::File,
     marker::PhantomData,
     path::Path,
     sync::{
@@ -10,10 +11,10 @@ use std::{
         Arc,
     },
     thread::{sleep, JoinHandle},
-    time::Duration, fs::File,
+    time::Duration,
 };
 
-use super::{block_signals};
+use super::block_signals;
 
 pub trait MultiMonitor {
     type Stats: Serialize + Sized;
@@ -25,7 +26,7 @@ pub trait MultiMonitor {
     fn collect_multiple(&mut self) -> Result<Vec<Self::Stats>>;
 }
 
-pub trait Monitor {  
+pub trait Monitor {
     type Stats: Serialize + Sized;
 
     fn new() -> Result<Self>
@@ -37,18 +38,18 @@ pub trait Monitor {
 
 impl<T: Monitor> MultiMonitor for T {
     type Stats = T::Stats;
-    
+
     fn collect_multiple(&mut self) -> Result<Vec<Self::Stats>> {
         self.collect().map(|r| vec![r])
     }
 
-
     fn new() -> Result<Self>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         T::new()
     }
 }
-
 
 pub struct CSVCollector<M: MultiMonitor> {
     stop_flag: Arc<AtomicBool>,

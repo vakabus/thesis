@@ -1,7 +1,7 @@
-use std::os::fd::{RawFd, AsRawFd};
+use std::os::fd::{AsRawFd, RawFd};
 
 use pnet::{
-    datalink::{self, interfaces, Channel, DataLinkSender, NetworkInterface, Config},
+    datalink::{self, interfaces, Channel, Config, DataLinkSender, NetworkInterface},
     packet::ethernet::{EtherTypes, MutableEthernetPacket},
     util::MacAddr,
 };
@@ -31,7 +31,7 @@ impl RawSocket {
 
         // Create a new channel, dealing with layer 2 packets
         let mut config = Config::default();
-        config.write_buffer_size = 1024*1024 >> 2;
+        config.write_buffer_size = 1024 * 1024 >> 2;
         let (tx, _) = match datalink::channel(&interface, config) {
             Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => panic!("Unhandled channel type"),
@@ -80,7 +80,9 @@ impl RawSocket {
                 init_packet(pkt, self.count);
                 self.count = self.count.wrapping_add(1);
             };
-            self.tx.build_and_send(count as usize, self.eth_header_cache.len(), &mut func).unwrap()?;
+            self.tx
+                .build_and_send(count as usize, self.eth_header_cache.len(), &mut func)
+                .unwrap()?;
         }
 
         Ok(())
@@ -94,10 +96,11 @@ pub struct IOUringRawSocket {
 
 impl Drop for IOUringRawSocket {
     fn drop(&mut self) {
-        unsafe { libc::close(self.socket); }
+        unsafe {
+            libc::close(self.socket);
+        }
     }
 }
-
 
 fn network_addr_to_sockaddr(
     ni: &NetworkInterface,
@@ -131,7 +134,7 @@ impl IOUringRawSocket {
         if socket == -1 {
             return anyhow::Result::Err(std::io::Error::last_os_error());
         }
-        let mut addr: libc::sockaddr_storage = unsafe {std::mem::zeroed() };
+        let mut addr: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
         let len = network_addr_to_sockaddr(&default_interface().unwrap(), &mut addr, proto as i32);
 
         let send_addr = (&addr as *const libc::sockaddr_storage) as *const libc::sockaddr;
@@ -145,15 +148,18 @@ impl IOUringRawSocket {
             return Err(err);
         }
 
-        Ok(Self { socket, ring: rio::new()? })
+        Ok(Self {
+            socket,
+            ring: rio::new()?,
+        })
     }
 
     pub fn sent_eth_pkts(&self, num: u64, count: usize) -> anyhow::Result<()> {
         let mut pkt = vec![[0u8; 16]; count];
         let mut compls = Vec::with_capacity(count);
-        
+
         for (i, slice) in pkt.iter_mut().enumerate() {
-            init_packet(slice, num+i as u64);
+            init_packet(slice, num + i as u64);
             let compl = self.ring.send(self, slice);
             compls.push(compl);
         }
@@ -161,7 +167,7 @@ impl IOUringRawSocket {
         for c in compls.into_iter() {
             c.wait()?;
         }
-        
+
         Ok(())
     }
 }
@@ -185,7 +191,7 @@ fn mutate_packet(pkt: &mut [u8]) {
     (source.3, carry) = source.3.carrying_add(1, carry);
     (source.2, carry) = source.2.carrying_add(1, carry);
     (source.1, carry) = source.1.carrying_add(1, carry);
-    (source.0, _)     = source.0.carrying_add(1, carry);
+    (source.0, _) = source.0.carrying_add(1, carry);
 
     ethernet_header.set_source(source);
 }

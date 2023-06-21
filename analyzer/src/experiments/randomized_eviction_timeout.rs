@@ -5,23 +5,25 @@ use csv::WriterBuilder;
 use rand::Rng;
 use std::{net::IpAddr, str::FromStr, thread::sleep, time::Duration};
 
-use crate::utils::latency::{ping_twice, ping_multiple};
+use crate::utils::latency::{ping_multiple, ping_twice};
 
 #[derive(Parser, Debug)]
 pub struct RandomizedEvictionTimeoutArgs {
-    /// Starting time delay between samples
+    /// starting time delay between samples
     #[arg(long, default_value_t = 8000)]
     delay_min: u64,
 
-    /// What is the largest time delay between samples we should measure
+    /// what is the largest time delay between samples we should measure
     #[arg(long, default_value_t = 12000)]
     delay_max: u64,
 
+    /// where do we send the ICMP packets
     #[arg(long, default_value_t = String::from("192.168.1.221"))]
     target_ip: String,
 
+    /// number of consecutive pings
     #[arg(long, default_value_t = 2)]
-    count: usize
+    count: usize,
 }
 
 pub fn run(args: RandomizedEvictionTimeoutArgs) {
@@ -38,11 +40,9 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
 
     let mut header = vec!["us_since_last_measurement".to_owned()];
     for i in 0..args.count {
-        header.push(format!("us_latency{}", i+1));
+        header.push(format!("us_latency{}", i + 1));
     }
-    output
-        .write_record(header)
-        .unwrap(); // header
+    output.write_record(header).unwrap(); // header
 
     // warmup
     _ = ping_twice(addr);
@@ -62,9 +62,7 @@ pub fn run(args: RandomizedEvictionTimeoutArgs) {
                 record.extend(durs.into_iter().map(|d| d.as_micros().to_string()));
 
                 // write
-                output
-                    .write_record(record)
-                    .unwrap();
+                output.write_record(record).unwrap();
                 output.flush().expect("failed to flush results to disk");
 
                 // print fancy log message and wait for next

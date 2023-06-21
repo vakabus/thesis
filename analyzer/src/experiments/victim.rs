@@ -3,8 +3,8 @@ use std::{path::Path, time::Duration};
 use clap::Parser;
 
 use crate::utils::{
-    dump_file,
-    results_uploader::ResultHandler, wait_for_signal, rr::UdpRRCollector, latency::PingCollector, wait_for_signal_or_timeout,
+    dump_file, latency::PingCollector, results_uploader::ResultHandler, rr::UdpRRCollector,
+    wait_for_signal, wait_for_signal_or_timeout,
 };
 
 #[derive(Parser, Debug)]
@@ -25,8 +25,13 @@ pub fn run(args: VictimArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyho
 
     /* wait for SIGINT to stop */
     info!("Collecting data. Press Ctrl+C or send SIGINT to stop.");
-    let timeout = if let Some(dur) = args.runtime_sec { Duration::from_secs(dur) } else { Duration::MAX };
-    wait_for_signal_or_timeout(signal_hook::consts::SIGINT, timeout).expect("waiting for signal failed");
+    let timeout = if let Some(dur) = args.runtime_sec {
+        Duration::from_secs(dur)
+    } else {
+        Duration::MAX
+    };
+    wait_for_signal_or_timeout(signal_hook::consts::SIGINT, timeout)
+        .expect("waiting for signal failed");
 
     /* stop collectors */
     debug!("Stopping UDP RR collector");

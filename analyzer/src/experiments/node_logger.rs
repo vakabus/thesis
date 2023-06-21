@@ -3,13 +3,14 @@ use std::{path::Path, time::Duration};
 use clap::Parser;
 
 use crate::utils::{
-    dump_file, external_prog::{run_external_program_async}, ovs::OvsDpctlCollector,
-    results_uploader::ResultHandler, vswitchd_monitor::SystemStatCollector, wait_for_signal, wait_for_signal_or_timeout, loadavg::LoadavgCollector,
+    dump_file, external_prog::run_external_program_async, loadavg::LoadavgCollector,
+    ovs::OvsDpctlCollector, results_uploader::ResultHandler, vswitchd_monitor::SystemStatCollector,
+    wait_for_signal, wait_for_signal_or_timeout,
 };
 
 #[derive(Parser, Debug)]
 pub struct LogNodeArgs {
-    /// trace only kernel flow table and upcalls, not anything additional
+    /// trace only kernel flow table and upcalls, not lock timing and more
     #[arg(long, action)]
     only_upcalls: bool,
 
@@ -17,11 +18,11 @@ pub struct LogNodeArgs {
     #[arg(long)]
     runtime_sec: Option<u64>,
 
-    /// record perf
+    /// use perf to monitor ovs-vswitchd
     #[arg(long, action)]
     perf: bool,
 
-    /// record offcputime
+    /// use offcputime to monitor ovs-vswitchd
     #[arg(long, action)]
     offcputime: bool,
 }
@@ -59,16 +60,23 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
     /* perf */
     let mut perf = None;
     if args.perf {
-        perf = Some(run_external_program_async(include_bytes!("node_logger_perf.sh"), &[&filename_perf])?);
+        perf = Some(run_external_program_async(
+            include_bytes!("node_logger_perf.sh"),
+            &[&filename_perf],
+        )?);
     }
 
     /* offcputime */
     let mut offcputime = None;
     if args.offcputime {
-        offcputime = Some(run_external_program_async(include_bytes!("node_logger_offcputime.sh"), &[&filename_offcputime])?);
+        offcputime = Some(run_external_program_async(
+            include_bytes!("node_logger_offcputime.sh"),
+            &[&filename_offcputime],
+        )?);
     }
 
-    let usdt = run_external_program_async(include_bytes!("node_logger_usdt.sh"), &[&filename_usdt])?;
+    let usdt =
+        run_external_program_async(include_bytes!("node_logger_usdt.sh"), &[&filename_usdt])?;
 
     /* system stat collector */
     let system_stats =
@@ -82,8 +90,12 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
 
     if let Some(runtime) = args.runtime_sec {
         /* run for the given time or until Ctrl+C */
-        info!("Collecting data for {} sec. Press Ctrl+C / SIGINT to interrupt.", runtime);
-        wait_for_signal_or_timeout(signal_hook::consts::SIGINT, Duration::from_secs(runtime)).expect("waiting for signal failed");
+        info!(
+            "Collecting data for {} sec. Press Ctrl+C / SIGINT to interrupt.",
+            runtime
+        );
+        wait_for_signal_or_timeout(signal_hook::consts::SIGINT, Duration::from_secs(runtime))
+            .expect("waiting for signal failed");
     } else {
         /* wait for SIGINT to stop */
         info!("Collecting data. Press Ctrl+C or send SIGINT to stop.");
@@ -92,19 +104,37 @@ pub fn run(args: LogNodeArgs, handler: Box<impl ResultHandler + ?Sized>) -> anyh
 
     /* stop collectors */
     info!("stopping ovs_dpctl_stats");
-    _ = ovs_dpctl_stats.stop().inspect_err(|e| warn!("collector failed: {}", e));
+    _ = ovs_dpctl_stats
+        .stop()
+        .inspect_err(|e| warn!("collector failed: {}", e));
     info!("stopping system stats");
-    _ = system_stats.stop().inspect_err(|e| warn!("collector failed: {}", e));
+    _ = system_stats
+        .stop()
+        .inspect_err(|e| warn!("collector failed: {}", e));
     info!("stopping loadavg collector");
-    _ = loadavg.stop().inspect_err(|e| warn!("loadavg collector failed: {}", e));
+    _ = loadavg
+        .stop()
+        .inspect_err(|e| warn!("loadavg collector failed: {}", e));
     info!("stopping kernel tracer");
-    _ = kernel_tracer.stop().inspect_err(|e| warn!("collector failed: {}", e));
+    _ = kernel_tracer
+        .stop()
+        .inspect_err(|e| warn!("collector failed: {}", e));
     info!("stopping usdt tracer");
-    _ = usdt.stop().inspect_err(|e| warn!("usdt tracer failed: {}", e));
+    _ = usdt
+        .stop()
+        .inspect_err(|e| warn!("usdt tracer failed: {}", e));
     info!("stopping perf");
-    if let Some(perf) = perf { _ = perf.stop_with_timeout(Duration::from_secs(120)).inspect_err(|e| warn!("collector failed: {}", e)); }
+    if let Some(perf) = perf {
+        _ = perf
+            .stop_with_timeout(Duration::from_secs(120))
+            .inspect_err(|e| warn!("collector failed: {}", e));
+    }
     info!("stopping offcputime");
-    if let Some(offcputime) = offcputime { _ = offcputime.stop().inspect_err(|e| warn!("offcputime stop error: {}", e))};
+    if let Some(offcputime) = offcputime {
+        _ = offcputime
+            .stop()
+            .inspect_err(|e| warn!("offcputime stop error: {}", e))
+    };
     debug!("data flushed");
 
     /* process results */

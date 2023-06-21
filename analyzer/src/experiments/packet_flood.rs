@@ -1,9 +1,19 @@
-use std::{thread::sleep, time::{Duration}, sync::{Arc, atomic::{AtomicBool, Ordering}}};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::sleep,
+    time::Duration,
+};
 
 use anyhow::bail;
 use clap::{ArgGroup, Parser};
 
-use crate::utils::{clock_ns, raw_socket::{RawSocket, IOUringRawSocket}};
+use crate::utils::{
+    clock_ns,
+    raw_socket::{IOUringRawSocket, RawSocket},
+};
 
 #[derive(Parser, Debug)]
 #[clap(group(
@@ -32,6 +42,7 @@ pub struct PacketFloodArgs {
     #[arg(long)]
     runtime_sec: Option<u64>,
 
+    /// send packets as fast as possible, equivalent to --interval-ns 1
     #[arg(long)]
     nolimit: bool,
 }
@@ -52,7 +63,7 @@ pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
     // when we are just about ready to start, initialize key timestamps
     let start_time = clock_ns()?;
     let end_time = if let Some(dur) = args.runtime_sec {
-        start_time + dur*1_000_000_000
+        start_time + dur * 1_000_000_000
     } else {
         u64::MAX
     };
@@ -64,31 +75,23 @@ pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
         // send as many packets as should have been sent by now
         let now = clock_ns()?;
 
-
-        /*let old_sent = sent;
-        while sent * interval_ns + start_time < now && sent - old_sent < 10_000 {
-            raw_socket.send_ethernet_pkt_from_unique_mac()?;
-            sent += 1;
-        }*/
-
         /*
+        // send packets using a normal socket
         let cnt = u64::min((now - start_time) / interval_ns - sent, 10_000);
         raw_socket.unique_mac_pkts_rapid_fire(cnt)?;
         sent += cnt;
         */
 
-        
         /* send the packets using IO uring */
         let cnt = u64::min((now - start_time) / interval_ns - sent, 20_000);
         ior.sent_eth_pkts(sent, cnt as usize)?;
         sent += cnt;
-        
-        
 
         // sleeping shorter time durations than about 60us does not make sense
         // https://stackoverflow.com/questions/4986818/how-to-sleep-for-a-few-microseconds/71757858#71757858
         const SLEEP_THRESHOLD: Duration = Duration::from_micros(60);
-        if sent * interval_ns + start_time >= now { // check that we are ahead of schedule, otherwise no delay
+        if sent * interval_ns + start_time >= now {
+            // check that we are ahead of schedule, otherwise no delay
             let dur = Duration::from_nanos((sent * interval_ns + start_time) - now);
             if dur > SLEEP_THRESHOLD {
                 sleep(dur);
@@ -96,7 +99,7 @@ pub fn run(args: PacketFloodArgs) -> anyhow::Result<()> {
                 // busy wait
             }
         }
-        
+
         let now = clock_ns()?;
         if (now - start_time) / 5_000_000_000 == stat_count {
             stat_count += 1;

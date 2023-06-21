@@ -1,4 +1,3 @@
-pub mod eviction_timeout;
 pub mod randomized_eviction_timeout;
 
 pub mod install_dependencies;

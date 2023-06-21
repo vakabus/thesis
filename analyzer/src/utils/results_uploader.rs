@@ -1,4 +1,4 @@
-use std::{path::Path, env};
+use std::{env, path::Path};
 
 pub trait ResultHandler {
     fn handle_result(&self, path: &Path);

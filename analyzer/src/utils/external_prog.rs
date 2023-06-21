@@ -11,7 +11,6 @@ use std::{
 use memfd::{Memfd, MemfdOptions};
 use subprocess::{unix::PopenExt, Popen};
 
-
 pub struct ExternalProg {
     popen: Popen,
     _mfd: Option<Memfd>, // just to keep a reference to it the whole time the program is running
@@ -86,7 +85,7 @@ pub fn run_cmd_async(cmd: &[&str]) -> anyhow::Result<ExternalProg> {
 
     Ok(ExternalProg {
         popen: exec,
-        _mfd: None
+        _mfd: None,
     })
 }
 

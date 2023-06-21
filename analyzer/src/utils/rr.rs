@@ -1,20 +1,29 @@
-use std::{net::{UdpSocket, TcpStream}, io::{Write, Read}, time::Duration, sync::{mpsc::{channel, Receiver, Sender}, atomic::{AtomicBool, Ordering}, Arc}, thread::{JoinHandle, self}, collections::BTreeSet};
+use std::{
+    collections::BTreeSet,
+    io::{Read, Write},
+    net::{TcpStream, UdpSocket},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
+};
 
-use anyhow::{Result};
-use nix::errno:: Errno;
+use anyhow::Result;
+use nix::errno::Errno;
 use serde::Serialize;
 
 use super::{
     clock_ns,
-    collector::{CSVCollector, MultiMonitor, Monitor},
+    collector::{CSVCollector, Monitor, MultiMonitor},
 };
-
-
 
 #[derive(Debug, Serialize)]
 pub struct Datapoint {
     ts: u64,
-    latency_ns: u64
+    latency_ns: u64,
 }
 
 const MSG: [u8; 1] = [42u8];
@@ -28,10 +37,12 @@ pub struct UdpRRMonitor {
 }
 
 impl UdpRRMonitor {
-    fn receive_thread(stop_flag: Arc<AtomicBool>, socket: UdpSocket, sender: Sender<(u64,u64)>) {
-        while ! stop_flag.load(Ordering::Relaxed) {
+    fn receive_thread(stop_flag: Arc<AtomicBool>, socket: UdpSocket, sender: Sender<(u64, u64)>) {
+        while !stop_flag.load(Ordering::Relaxed) {
             let mut buf = [0u8; 8];
-            socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap(); // more than the expected measurement interval
+            socket
+                .set_read_timeout(Some(Duration::from_millis(200)))
+                .unwrap(); // more than the expected measurement interval
             match socket.recv(&mut buf) {
                 Ok(size) => {
                     if size == 8 {
@@ -40,14 +51,12 @@ impl UdpRRMonitor {
                     } else {
                         warn!("UDP packet of unexpected size {}", size);
                     }
-                },
+                }
                 Err(e) => {
                     if let Some(errno) = e.raw_os_error() {
                         let errno = Errno::from_i32(errno);
                         match errno {
-                            Errno::EAGAIN => {
-                                /* nothing interesting, this is valid */
-                            },
+                            Errno::EAGAIN => { /* nothing interesting, this is valid */ }
                             _ => {
                                 warn!("packet recv OS error: {}", errno);
                             }
@@ -61,7 +70,6 @@ impl UdpRRMonitor {
     }
 }
 
-
 impl MultiMonitor for UdpRRMonitor {
     type Stats = Datapoint;
 
@@ -73,11 +81,17 @@ impl MultiMonitor for UdpRRMonitor {
         let (sender, receiver) = channel();
         let stop_flag = Arc::new(AtomicBool::new(false));
         let stop_flag_clone = stop_flag.clone();
-        
+
         let handle = thread::spawn(|| {
             UdpRRMonitor::receive_thread(stop_flag_clone, sock, sender);
         });
-        Ok(UdpRRMonitor{socket: sock_clone, receiver, stop_flag: stop_flag, recv_thread: Some(handle), sent: BTreeSet::new()})
+        Ok(UdpRRMonitor {
+            socket: sock_clone,
+            receiver,
+            stop_flag: stop_flag,
+            recv_thread: Some(handle),
+            sent: BTreeSet::new(),
+        })
     }
 
     fn collect_multiple(&mut self) -> Result<Vec<Self::Stats>> {
@@ -85,7 +99,6 @@ impl MultiMonitor for UdpRRMonitor {
         let before_send = clock_ns()?;
         self.socket.send(&before_send.to_le_bytes())?;
         self.sent.insert(before_send); // store info about what we have sent to track dropped packets
-
 
         // collect all received packets
         let mut res = vec![];
@@ -95,14 +108,11 @@ impl MultiMonitor for UdpRRMonitor {
                 Ok((t1, t2)) => {
                     let ts = u64::min(t1, t2);
                     let latency_ns = u64::abs_diff(t1, t2);
-                    res.push(Self::Stats {
-                        ts,
-                        latency_ns
-                    });
-                    if ! self.sent.remove(&ts) {
+                    res.push(Self::Stats { ts, latency_ns });
+                    if !self.sent.remove(&ts) {
                         panic!("removing ts that we did not send");
                     }
-                },
+                }
                 Err(err) => {
                     break;
                 }
@@ -110,12 +120,12 @@ impl MultiMonitor for UdpRRMonitor {
         }
 
         // detect dropped packets
-        const DROPPED_THRESHOLD_NS: u64 = 15_000_000_000;  // 15 sec
+        const DROPPED_THRESHOLD_NS: u64 = 15_000_000_000; // 15 sec
         for ts in self.sent.iter() {
             if u64::abs_diff(before_send, *ts) > DROPPED_THRESHOLD_NS {
                 res.push(Self::Stats {
                     ts: *ts,
-                    latency_ns: u64::MAX
+                    latency_ns: u64::MAX,
                 });
             } else {
                 // we are iterating in ascending order, so nothing following will be expired
@@ -130,7 +140,11 @@ impl MultiMonitor for UdpRRMonitor {
 impl Drop for UdpRRMonitor {
     fn drop(&mut self) {
         self.stop_flag.store(true, Ordering::Relaxed);
-        self.recv_thread.take().unwrap().join().expect("joining the recv thread of UdpRRMonitor failed");
+        self.recv_thread
+            .take()
+            .unwrap()
+            .join()
+            .expect("joining the recv thread of UdpRRMonitor failed");
     }
 }
 
@@ -143,7 +157,7 @@ impl Monitor for TcpRRMonitor {
 
     fn new() -> Result<Self> {
         let sock = TcpStream::connect("reflector.default.svc.cluster.local:80")?;
-        Ok(TcpRRMonitor {socket: sock})
+        Ok(TcpRRMonitor { socket: sock })
     }
 
     fn collect(&mut self) -> anyhow::Result<Datapoint> {

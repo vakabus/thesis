@@ -28,7 +28,7 @@ fn get_vswitchd_proc() -> Result<Process> {
         let proc = proc?;
         if let Ok(stat) = proc.stat() {
             if stat.comm == "ovs-vswitchd" {
-                return Ok( proc );
+                return Ok(proc);
             }
         }
     }
@@ -44,7 +44,7 @@ impl Monitor for VSwitchdMonitor {
     }
 
     fn collect(&mut self) -> anyhow::Result<Datapoint> {
-        if ! self.proc.is_alive() {
+        if !self.proc.is_alive() {
             self.proc = get_vswitchd_proc()?;
         }
 

@@ -3,10 +3,12 @@ use std::fs;
 use anyhow::Result;
 use serde::Serialize;
 
-use super::{collector::{CSVCollector, Monitor}, clock_ns};
+use super::{
+    clock_ns,
+    collector::{CSVCollector, Monitor},
+};
 
-pub struct LoadavgMonitor {
-}
+pub struct LoadavgMonitor {}
 
 #[derive(Debug, Serialize)]
 pub struct Datapoint {
@@ -33,7 +35,7 @@ impl Monitor for LoadavgMonitor {
         let loadavg5 = it.next().unwrap();
         let loadavg15 = it.next().unwrap();
         let procs = it.next().unwrap();
-        
+
         let mut it = procs.split('/');
         let running = it.next().unwrap();
         let all = it.next().unwrap();
@@ -44,7 +46,7 @@ impl Monitor for LoadavgMonitor {
             loadavg5: loadavg5.parse()?,
             loadavg15: loadavg15.parse()?,
             proc_running: running.parse()?,
-            proc_all: all.parse()?
+            proc_all: all.parse()?,
         })
     }
 }

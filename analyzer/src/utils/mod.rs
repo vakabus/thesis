@@ -1,22 +1,28 @@
-use std::{time::{Duration, Instant}, thread::sleep};
+use std::{
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 use anyhow::bail;
 use nix::sys::{
     signal::{sigprocmask, SigmaskHow},
     signalfd::SigSet,
 };
-use signal_hook::{iterator::{exfiltrator::SignalOnly, SignalsInfo}, low_level::signal_name};
+use signal_hook::{
+    iterator::{exfiltrator::SignalOnly, SignalsInfo},
+    low_level::signal_name,
+};
 
 pub mod collector;
 pub mod external_prog;
 pub mod latency;
+pub mod loadavg;
 pub mod ovs;
 pub mod raw_socket;
 pub mod results_uploader;
+pub mod rr;
 pub mod tcpdump;
 pub mod vswitchd_monitor;
-pub mod rr;
-pub mod loadavg;
 
 pub fn dump_file(name: &str, ext: &str) -> String {
     format!("{}_{}.{}", name, chrono::Local::now().to_rfc3339(), ext)
@@ -48,7 +54,7 @@ pub fn wait_for_signal(signal: i32) -> anyhow::Result<()> {
 pub fn wait_for_signal_or_timeout(expect: i32, timeout: Duration) -> anyhow::Result<()> {
     let mut signals = SignalsInfo::<SignalOnly>::new(vec![expect])?;
     debug!("Waiting for signal {}", signal_name(expect).unwrap());
-    
+
     let start = Instant::now();
     while start + timeout > Instant::now() {
         // check signals
@@ -57,7 +63,11 @@ pub fn wait_for_signal_or_timeout(expect: i32, timeout: Duration) -> anyhow::Res
                 debug!("signal {} received", signal_name(sig).unwrap());
                 return Ok(());
             } else {
-                bail!("received signal {} when expecting {}", signal_name(sig).unwrap(), signal_name(expect).unwrap());
+                bail!(
+                    "received signal {} when expecting {}",
+                    signal_name(sig).unwrap(),
+                    signal_name(expect).unwrap()
+                );
             };
         }
 

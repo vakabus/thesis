@@ -1,6 +1,6 @@
 use core::panic;
 use std::{
-    net::{IpAddr, UdpSocket, Ipv4Addr},
+    net::{IpAddr, Ipv4Addr, UdpSocket},
     time::{Duration, Instant},
 };
 
@@ -8,7 +8,10 @@ use anyhow::{anyhow, Context};
 use serde::Serialize;
 use subprocess::{Exec, Redirection};
 
-use super::{collector::{CSVCollector, Monitor}, clock_ns};
+use super::{
+    clock_ns,
+    collector::{CSVCollector, Monitor},
+};
 
 /// turns this line:
 /// >  64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.053 ms
@@ -38,7 +41,10 @@ pub fn ping(addr: IpAddr) -> anyhow::Result<Duration> {
         .unwrap();
 
     if !child.success() {
-        Err(anyhow!("ping command exited with non-zero exit code {:?}", child.exit_status))
+        Err(anyhow!(
+            "ping command exited with non-zero exit code {:?}",
+            child.exit_status
+        ))
     } else {
         let out = child.stdout_str();
         let res = out.lines().nth(1).unwrap();
@@ -59,7 +65,8 @@ impl Monitor for PingMonitor {
 
     fn new() -> anyhow::Result<Self>
     where
-        Self: Sized {
+        Self: Sized,
+    {
         Ok(PingMonitor {
             addr: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 221)),
         })
@@ -67,22 +74,33 @@ impl Monitor for PingMonitor {
 
     fn collect(&mut self) -> anyhow::Result<Self::Stats> {
         match ping(self.addr) {
-            Ok(d) => {
-                Ok(PingStat { ts: clock_ns()?, latency_us: d.as_micros() as u64 })
-            },
+            Ok(d) => Ok(PingStat {
+                ts: clock_ns()?,
+                latency_us: d.as_micros() as u64,
+            }),
             Err(e) => {
-                warn!("ping failed: {}" ,e);
-                Ok(PingStat { ts: clock_ns()?, latency_us: u64::MAX })
+                warn!("ping failed: {}", e);
+                Ok(PingStat {
+                    ts: clock_ns()?,
+                    latency_us: u64::MAX,
+                })
             }
         }
-        
     }
 }
 
 pub fn ping_multiple(count: usize, addr: IpAddr) -> Result<Vec<Duration>, anyhow::Error> {
     // the pings are 10ms apart, that should be enough for the kernel to create the rule
     let child = Exec::cmd("ping")
-        .args(&["-c", &format!("{}", count), "-i", "0.01", "-w", "1", &addr.to_string()])
+        .args(&[
+            "-c",
+            &format!("{}", count),
+            "-i",
+            "0.01",
+            "-w",
+            "1",
+            &addr.to_string(),
+        ])
         .stdout(Redirection::Pipe)
         .capture()
         .unwrap();
@@ -97,7 +115,9 @@ pub fn ping_multiple(count: usize, addr: IpAddr) -> Result<Vec<Duration>, anyhow
 
         let mut res = Vec::with_capacity(count);
         for i in 0..count {
-            let line = lines.next().context(format!("missing {}th ping stats", i+1))?;
+            let line = lines
+                .next()
+                .context(format!("missing {}th ping stats", i + 1))?;
             res.push(parse_ping_output_line(line)?);
         }
 
@@ -107,10 +127,7 @@ pub fn ping_multiple(count: usize, addr: IpAddr) -> Result<Vec<Duration>, anyhow
 
 pub fn ping_twice(addr: IpAddr) -> Result<(Duration, Duration), anyhow::Error> {
     let vec = ping_multiple(2, addr)?;
-    Ok((
-        vec[0],
-        vec[1]
-    ))
+    Ok((vec[0], vec[1]))
 }
 
 pub fn dns_lookup(server: IpAddr) -> Duration {
@@ -146,7 +163,6 @@ pub fn dns_lookup(server: IpAddr) -> Duration {
 
     after_recv.duration_since(after_send)
 }
-
 
 pub type PingCollector = CSVCollector<PingMonitor>;
 
