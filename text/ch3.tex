@@ -90,9 +90,17 @@ The flow rules in OVS datapaths use the \href{https://elixir.bootlin.com/linux/v
 
 We used Scapy to generate the packets. For example, the code to generate random TTL values in an IPv4 packet looks like this:
 
+
+\pagebreak  % this looks the best
 \begin{verbatim}
 tag("IP(ttl)")
-sendp(Ether(dst="aa:bb:cc:dd:ee:ff") / IP(dst="10.244.1.1", ttl=RandByte()), count=1000)
+sendp(
+    Ether(dst="aa:bb:cc:dd:ee:ff") / IP(
+        dst="10.244.1.1",
+        ttl=RandByte()
+    ),
+    count=1000
+)
 sleep(11)  # more than the eviction timeout
 \end{verbatim}
 

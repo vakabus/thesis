@@ -1,46 +1,84 @@
-\chapter{The experiments}
+\chapter{\ident{analyzer} - the tool for running experiments}
 \label{chap:analyzer}
 
-Use this appendix to tell the readers (specifically the reviewer) how to use your software. A very reduced example follows; expand as necessary. Description of the program usage (e.g., how to process some example data) should be included as well.
+\section{Build}
 
-To compile and run the software, you need dependencies XXX and YYY and a C compiler. On Debian-based Linux systems (such as Ubuntu), you may install these dependencies with APT:
-\begin{Verbatim}
-apt-get install \
-  libsuperdependency-dev \
-  libanotherdependency-dev \
-  build-essential
-\end{Verbatim}
+The source code is located in the \ident{analyzer} directory in the attachment. Only the Rust toolchain is required for compilation:
 
-To unpack and compile the software, proceed as follows:
-\begin{Verbatim}
-unzip coolsoft.zip
-cd coolsoft
-./configure
-make
-\end{Verbatim}
+\begin{verbatim}
+# in the analyzer/ directory
+cargo build --release --target=x86_64-unknown-linux-musl
+# the executable will be located at 
+#    analyzer/target/x86_64-unknown-linux-musl/release/analyzer
+\end{verbatim}
 
-The program can be used as a C++ library, the simplest use is demonstrated in \cref{lst:ex}. A demonstration program that processes demonstration data is available in directory \verb|demo/|, you can run the program on a demonstration dataset as follows:
-\begin{Verbatim}
-cd demo/
-./bin/cool_process_data data/demo1
-\end{Verbatim}
+Continue by building the container image:
 
-After the program starts, control the data avenger with standard \verb-WSAD- controls.
+\begin{verbatim}
+# again in the analyzer/ directory
+podman build -t analyzer .
+\end{verbatim}
 
-\begin{listing}
-\begin{lstlisting}
-#include <CoolSoft.h>
-#include <iostream>
+Push the image to your container registry of choice and remember the qualified container name. The image is required for the \ident{reflector} pod, more in \cref{chap:install}. Also, copy the binary to the \ident{\$PATH} on all nodes and pods.
 
-int main() {
-	int i;
-	if(i = cool::ProcessAllData()) // returns 0 on error
-		std::cout << i << std::endl;
-	else
-		std::cerr << "error!" << std::endl;
-	return 0;
-}
-\end{lstlisting}
-\caption{Example program.}
-\label{lst:ex}
-\end{listing}
+\section{Usage}
+
+The \ident{analyzer} is generally a collection of smaller tools, all invoked via subcommands. The tool can be always supplied with the \ident{-{}-help} option and it will print out a help message. The following subsections will describe how to use the \ident{analyzer} for the discussed experiments.
+
+\paragraph{Data collection} The measurement results are stored in files in the \ident{analyzer}'s current working directory. Multiple files are usually created. The file names start with a human-readable identifier of the data series. The second part of the file names is a timestamp (identical for all files created in a single \ident{analyzer} run).
+
+The \ident{analyzer} can upload results to an HTTP server when provided with the \ident{-{}-push-results-url} argument. When the URL is provided, for every data file it creates, the \ident{analyzer} calls the \ident{curl -T [FILE] \{URL\}} command. 
+
+\paragraph{Data format}
+
+The result files are usually using the CSV format. All data series use the same time source (see \cref{subsec:clock}). Therefore, all measurements can be easily aligned even when the collected data came from different \ident{analyzer} runs (i.e. in a pod and on a host at the same time).
+
+\subsection{Eviction timeout measurement}
+
+The result of this experiment is a single CSV file with timestamps and the measured round-trip times.
+
+\begin{verbatim}
+# on arch (pod)
+analyzer randomized-eviction-timeout \
+		--target-ip 192.168.1.221 \
+		--count 3
+\end{verbatim}
+
+\subsection{Packet fuzzing}
+
+This experiment creates multiple data files, not all of which are relevant. From the \ident{node-logger} subcommand, we are interested in upcall statistics located in the \ident{kernel\_flow\_table\_trace*.csv} file. The \ident{tags*.jsonl} file from the \ident{packet-fuzz} subcommand provides us with timestamps allowing us to separate the upcalls into categories.
+
+\begin{verbatim}
+# on kb2
+analyzer install-dependencies
+analyzer node-logger --only-upcalls
+
+# on arch (pod)
+analyzer install-dependencies
+analyzer packet-fuzz
+\end{verbatim}
+
+
+\subsection{Packet flood}
+
+In this experiment, we were not looking for anything in particular, therefore all the result files can be of interest.
+
+\begin{verbatim}
+# on arch (pod)
+analyzer packet-flood --count 500000
+
+# on victim (pod)
+analyzer victim
+
+# on kb2
+analyzer install-dependencies
+analyzer node-logger --only-upcalls
+\end{verbatim}
+
+\section{Processing of results}
+
+Scripts for creating plots are located in the \ident{analyzer/postprocessing} directory. To use them, it is necessary to install Python, matplotlib, Polars, Pandas, numpy and scipy.
+
+There is a script for every experiment type. The packet flood experiment has multiple similar scripts with slightly differently preconfigured plots, the others have only a single script. The scripts, especially the packet-flood related, contain extra commented-out code to plot additional data.
+
+All scripts expect a single argument - a path to a directory containing all results from a single experiment.

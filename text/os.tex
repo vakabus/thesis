@@ -6,7 +6,7 @@ Start by preparing 3 standard Fedora 38 installations, all in a single LAN, idea
 In the attachment, there are two scripts prefixed with \ident{setup}. First, we advise editing both of the scripts:
 
 \begin{itemize}
-    \item Edit the \ident{setup1-general.sh} script and change the \ident{configure\_systemd\_networkd} function to match your network environment.
+    \item Edit the \ident{setup1-general.sh} script and change the network configuration function, \ident{configure\_systemd\_networkd}, to match your network environment. Especially the names of your network interfaces.
 
     \item Edit the \ident{setup2-master.sh} script and change \ident{\$IMAGE} variable with the qualified name of your OVS container (instructions on how to build it in \cref{chap:ovs-mod}).
 \end{itemize}
@@ -22,13 +22,13 @@ Once you changed the script, follow these steps:
 
     \item On \kb{1}, run \ident{kubeadm token create -{}-print-join-command}
 
-    \item Copy the output of the previous step, add the \ident{-{}-cri-socket=unix:///var/run/cri-dockerd.sock} option to its end and run it on both \kb{2} and \kb{3}.
+    \item Append the \ident{-{}-cri-socket=unix:///var/run/cri-dockerd.sock} option at the end of the output of the previous step and run the command on both \kb{2} and \kb{3}.
 
-    \item Wait for the cluster to fully initialize, i.e. until the command \ident{kubectl get nodes} on \kb{1} shows that all 3 nodes are in the \ident{Ready} state.
+    \item Wait for the cluster to initialize, i.e. the command \ident{kubectl get nodes} on \kb{1} should shows that all 3 nodes are in the \ident{Ready} state.
 
     \item Copy pod specification files from the \ident{kube\_configs} directory to \kb{1}. Edit the \ident{reflector.yaml} file and change the image reference to your build of the \ident{analyzer} container (see \cref{chap:analyzer}). Create the pods by calling \ident{kubectl create -f \$file}.
 
     \item Check the pods deployment status using \ident{kubectl get pods}. Make sure that all pods are in the \ident{Ready} state before proceeding.
 
-    \item Now you can run experiments using the pods. Use \ident{kubectl exec -ti arch -- /bin/bash} to get a root shell in the \ident{arch} pod. Similarly for the \ident{victim} pod.
+    \item At this point, you can run the experiments. To get a root shell in the \ident{arch} pod, use the \ident{kubectl exec -ti arch -{}- /bin/bash} command. Similarly for the \ident{victim} pod.
 \end{enumerate}

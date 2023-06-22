@@ -7,7 +7,7 @@
 Throughout our experiments, we have identified several areas in OVS that we believe could be immediately improved upon:
 
 \begin{itemize}
-    \item Instead of a fixed flow eviction timeout, enforce the flow limit in \ident{ovs-vswitchd} by using a PID controller and a variable eviction timeout.
+    \item In in \ident{ovs-vswitchd}, instead of a fixed flow eviction timeout, enforce the flow limit by using a PID controller and a variable eviction timeout.
     \item Free unused memory
     \item Remove the resource limits in OVN-Kubernetes default container configuration
 \end{itemize}
