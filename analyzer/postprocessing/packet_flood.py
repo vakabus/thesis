@@ -81,15 +81,6 @@ ax.legend(loc='upper right')
 #fig.tight_layout()
 ax.set_xlabel("seconds")
 
-"""
-fig = plt.figure("resources")
-ax: plt.Axes = fig.subplots()
-ax.scatter(vswitchd["ts"], vswitchd["vswitchd_threads"], label="vswitchd threads")
-ax.legend()
-fig.tight_layout()
-ax.set_xlabel("ns (CLOCK_MONOTONIC)")
-ax.set_ylabel("count")
-"""
 
-plt.savefig("/tmp/plot.png", bbox_inches="tight")
-#plt.show()
+#plt.savefig("/tmp/plot.png", bbox_inches="tight")
+plt.show()

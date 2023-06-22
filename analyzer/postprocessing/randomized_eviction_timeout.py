@@ -61,8 +61,8 @@ plt.xlabel("delay between pings (ms)")
 plt.ylabel("round trip time in μs")
 
 
-plt.savefig('/tmp/plot.pdf', bbox_inches="tight")
-#plt.show()
+#plt.savefig('/tmp/plot.pdf', bbox_inches="tight")
+plt.show()
 
 
 

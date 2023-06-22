@@ -83,9 +83,8 @@ ax.vlines(1000, ymin=0, ymax=len(upcalls_per_type), linestyles="dotted", color="
 #plt.scatter(df["ns_monotonic"], df["masks_hit_per_pkt"], label="masks hit per pkt")
 
 
-fig.savefig('/tmp/plot.pdf', bbox_inches="tight")
+#fig.savefig('/tmp/plot.pdf', bbox_inches="tight")
 
 
 
-exit(0)
 plt.show()

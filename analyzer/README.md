@@ -27,9 +27,7 @@ Options:
   -V, --version                              Print version information
 ```
 
-Special mention is worth to the `--push-results-url` option. It can be used together with the [`gimmedat`](https://github.com/vakabus/gimmedat) tool to collect experiment results over the network.
+Special mention is worth to the `--push-results-url` option. When supplied with the URL, the `analyzer` invokes the command `curl -T result.csv {URL}` for every file with results it creates. This works especially well when used together with the [`gimmedat`](https://github.com/vakabus/gimmedat) project to run the collector server.
 
 ## Processing results
-
-
 
