@@ -205,3 +205,10 @@ def remove_offset_and_scale(col: str, scale: float|int, *dfs: pl.DataFrame) -> l
 
 def normalize_ts(*args: pl.DataFrame) -> list[pl.DataFrame]:
     return remove_offset_and_scale('ts', 0.000_000_001, *args)
+
+def window_frequency(df: pl.DataFrame, period: float) -> pl.DataFrame:
+    mult = 10**len(str(period))
+    return df.lazy().with_columns((pl.col("ts") * mult).cast(pl.Int64)).set_sorted("ts").groupby_rolling("ts", period=f"{int(period*mult)}i").agg([
+        pl.col('ts').median().alias("mts") / mult,
+        (pl.col('ts').count() / (period)).alias("freq")
+    ]).collect()

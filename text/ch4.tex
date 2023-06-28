@@ -213,14 +213,14 @@ Either way, we expect that IPv6 ND packets are also a potential problem and they
 
 \begin{figure}
     \centering
-    \includegraphics[width=.9\linewidth]{img/packet_flood_bare_50k.png}
+    \includegraphics[width=.9\linewidth]{img/packet_flood_bare_50k.pdf}
     \caption{\ident{ovs-vswitchd} stressed with 50k upcalls per second}
     \label{fig:plot-packet-flood-bare-50k}
 \end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics[width=.9\linewidth]{img/packet_flood_bare_15k.png}
+    \includegraphics[width=.9\linewidth]{img/packet_flood_bare_15k.pdf}
     \caption{\ident{ovs-vswitchd} stressed with 15k upcalls per second}
     \label{fig:plot-packet-flood-bare-15k}
 \end{figure}
@@ -243,10 +243,10 @@ In both experiments, the flow table size fluctuates. With fewer upcalls, when on
 
 In other words, the revalidator thread checks flow rules in batches and whenever the flow table grows above the limit, a shorter eviction timeout is applied to the current batch. We hypothesize that the high amplitude of the fluctuations is caused by synchronization between multiple threads. There are multiple revalidator threads, each has its flow rule dump thread\footnote{\url{https://github.com/openvswitch/ovs/blob/474a179aff6c/ofproto/ofproto-dpif-upcall.c\#L2751}} and the actual rule deletion is handled in the kernel after receiving a deletion command over a netlink socket which has an internal queue. We did not confirm nor disprove the hypothesis.
 
-\paragraph{Upcalls}
-In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k}, the red dots at the bottom represent individual upcalls. We have randomized their position on the y-axis to improve legibility and better visualize upcall frequency.
-
-Whenever our stress tool runs, the red bar becomes saturated and dense. Our tool tries to send packets in regular intervals, so the red bar should appear mostly homogeneous. At the end of the test, we report the results over the network and our tools are not perfectly synchronized, hence small upcall clusters at the end of the experiment are to be expected.
+% \paragraph{Upcalls}
+% In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k}, the red dots at the bottom represent individual upcalls. We have randomized their position on the y-axis to improve legibility and better visualize upcall frequency.
+% 
+% Whenever our stress tool runs, the red bar becomes saturated and dense. Our tool tries to send packets in regular intervals, so the red bar should appear mostly homogeneous. At the end of the test, we report the results over the network and our tools are not perfectly synchronized, hence small upcall clusters at the end of the experiment are to be expected.
 
 \paragraph{System load}
 Because our packet flooding tool is a single-threaded application, it directly contributes to the load averages only by a value of 1 or less. However, we observe a significantly higher load average in both recorded experiments, in \cref{fig:plot-packet-flood-bare-50k} and in \cref{fig:plot-packet-flood-bare-15k}. Except for our running experiment, the system is idle. Hence we attribute the additional system load to OVS. As we discussed before in \cref{subsec:ovs-tasks}, OVS uses multiple threads during normal operation. By default, the revalidator threads iterate over the whole flow table every 500 \si{\milli\second} and command the kernel to delete flow rules. The upcall handlers continuously translate OpenFlow rules to datapath rules and command the kernel to insert new flow rules. All of this busy work causes the extra system load.
@@ -263,7 +263,7 @@ Same as with the system load, memory usage bypasses resource accounting. A conta
 
 \begin{figure}
     \centering
-    \includegraphics[width=.9\linewidth]{img/packet_flood_50k_latency.png}
+    \includegraphics[width=.9\linewidth]{img/packet_flood_50k_latency.pdf}
     \caption{Round trip times during 50k upcalls/sec stress test}
     \label{fig:plot-packet-flood-50k-latency}
 \end{figure}
@@ -362,12 +362,12 @@ if (duration > 2000) {
 flow_limit = MIN(ofproto_flow_limit, MAX(flow_limit, 1000));
 \end{verbatim}
 
-We can see the effect of this code in \cref{fig:packet-flood-limited}. The red dots (not upcalls) signify the dynamic flow limit. The horizontal lines going to the left of the dots signify the time the revalidator run took. We can see that a long revalidator run leads to a decreased flow limit.
+We can see the effect of this code in \cref{fig:packet-flood-limited}. The red dots signify the dynamic flow limit. The horizontal lines going to the right of the dots signify the time the revalidator run took. We can see that a long revalidator run leads to a decreased flow limit.
 
 % QT_QPA_PLATFORM=xcb python postprocessing/packet_flood.py results/packet_flood_2023-06-11T21:15+02:00/
 \begin{figure}
     \centering
-    \includegraphics[width=.9\linewidth]{img/packet_flood_limited_resources_50k.png}
+    \includegraphics[width=.9\linewidth]{img/packet_flood_limited_resources_50k.pdf}
     \caption{5k upcalls/sec stress test}
     \label{fig:packet-flood-limited}
 \end{figure}

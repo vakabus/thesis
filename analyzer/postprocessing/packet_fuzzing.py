@@ -48,7 +48,7 @@ ax.set_ylabel("count")
 trace_upcalls = trace_upcalls.with_columns(
     trace_upcalls['ts'].cut(bins=tags['ts'], labels=["junk"]+list(tags['tag']), maintain_order=True, category_label='test')['test'].cast(str)
 ).filter(~pl.col("test").is_in(("junk", "end")))
-upcalls_per_type = trace_upcalls.groupby("test", maintain_order=True).count().join(tags, left_on="test", right_on="tag", how="outer").filter(~pl.col("test").is_in(("junk", "end")))
+upcalls_per_type = trace_upcalls.groupby("test", maintain_order=True).count().join(tags, left_on="test", right_on="tag", how="outer").filter(~pl.col("test").is_in(("junk", "end"))).sort("count", descending=True)
 
 trace_upcalls_filtered = trace_upcalls_filtered.with_columns(
     trace_upcalls_filtered['ts'].cut(bins=tags['ts'], labels=["junk"]+list(tags['tag']), maintain_order=True, category_label='test')['test'].cast(str)
@@ -83,8 +83,8 @@ ax.vlines(1000, ymin=0, ymax=len(upcalls_per_type), linestyles="dotted", color="
 #plt.scatter(df["ns_monotonic"], df["masks_hit_per_pkt"], label="masks hit per pkt")
 
 
-#fig.savefig('/tmp/plot.pdf', bbox_inches="tight")
+fig.savefig('/tmp/plot.pdf', bbox_inches="tight")
 
 
 
-plt.show()
+#plt.show()

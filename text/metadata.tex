@@ -57,18 +57,18 @@ Dedication. \xxx{It is nice to say thanks to supervisors, friends, family, book 
 }
 
 \def\AbstractEN{%
-\xxx{Abstracts are an abstract form of art. Use the most precise, shortest sentences that state what problem the thesis addresses, how it is approached, pinpoint the exact result achieved, and describe the applications and significance of the results. Highlight anything novel that was discovered or improved by the thesis. Maximum length is 200 words, but try to fit into 120. Abstracts are often used for deciding if a reviewer will be suitable for the thesis; a well-written abstract thus increases the probability of getting a reviewer who will like the thesis.}
+With the adoption of cloud computing, horizontally scalable infrastructure, and containerized deployments, Software Defined Networking (SDN) became an integral part of data centers, Kubernetes and Open vSwitch (OVS) being one of the commonly deployed solutions. Our work explores the possible performance limitations of OVS under Kubernetes, focusing on pathological traffic patterns. We discovered several types of packets causing excess system load on the cluster nodes. We identified the root cause as a series of drop rules in OpenFlow and a design flaw in OVS that prevents their efficient evaluation. We investigated the impact of this problem and our research revealed a specific system configurations under which an adversary can use the discovered inefficiencies for a practical denial of service attack on the local cluster node, bringing the whole networking stack down for all neighbouring containers.
 % ABSTRACT IS NOT A COPY OF YOUR THESIS ASSIGNMENT!
 }
 
 \def\AbstractCS{%
-\xxx{You will need to submit both Czech and English abstract to the SIS, no matter what language you use in the thesis. If writing in English, translate the contents of \texttt{\textbackslash{}AbstractEN} into this field. In case you do not speak czech, your supervisor should be able to help you with the translation.}
+S nástupem cloud computingu, kontejnerů a horizontálně škálovatelné infrastruktury, se nedílnou součástí datových center staly softwarově definované sítě (SDN). Jedním z běžně nasazovaných řešení je Kubernetes a Open vSwitch (OVS). V této diplomové práci hledáme možná výkonnostní omezení OVS při použití v rámci Kubernetes. Zaměřujeme se na problémy způsobené neobvyklým síťovým provozem. Výsledkem je objev několika typů paketů způsobujících nadměrné zatížení uzlů clusteru. Jako hlavní příčinu jsme identifikovali řadu filtračních pravidel v OpenFlow a chybu v návrhu OVS, která brání jejich efektivnímu vyhodnocování. Při specifické konfiguraci systému toto potenciálním útočníkům umožňuje využít objevenou neefektivitu k praktickému Denial-of-Service útoku na místní uzel clusteru, který způsobí kompletní síťový výpadek pro všechny kontejnery.
 }
 
 % 3 to 5 keywords (recommended), each enclosed in curly braces.
 % Keywords are useful for indexing and searching for the theses by topic.
 \def\Keywords{%
-\xxx{{key} {words}}
+{Kubernetes} {Open Virtual Network (OVN)} {Open vSwitch (OVS)} {OVN-Kubernetes} {Linux} {networking}
 }
 
 % If your abstracts are long and do not fit in the infopage, you can make the

@@ -1,7 +1,7 @@
 % Metadata to be stored in PDF, see documentation of the pdfx package for more details.
 
 \Author{Václav Šraier}
-\Title{Thesis title}
-\Keywords{keywords\sep more such\sep yet another}
+\Title{Performance of Open vSwitch-based Kubernetes Cluster in Pathological Cases}
+\Keywords{Kubernetes\sep Open Virtual Network\sep OVN\sep Open vSwitch\sep OVS\sep OVN-Kubernetes\sep networking\sep Linux}
 \Subject{Abstract of thesis}
 \Publisher{Charles University} 
