@@ -1,25 +1,23 @@
 \chapter{Experiments}
 \label{chap:design}
 
-As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore, some packets require much more processing and can slow the system down. 
-\todo{rationale for the questions and direction of research}
+As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore packets generating upcalls are more expensive to process than the other packets. Can we reliably generate upcalls? And what happens when we flood OVS with such traffic? In this chapter, we will try to answer these questions.
 
-Eelco Chaudron investigated the cost of an upcall in OVS \cite{UpcallCost} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{150}{\us} and \qty{10}{\ms} extra compared to the fast path.
+We split our research into the following parts, always building on the previous results:
 
-Based on this knowledge, we tried to answer the following questions about OVS internals:
+\begin{enumerate}
+    \item We investigated flow rule handling in OVS. If we sent the same packet twice, the second will always hit a rule in the datapath and it will not generate an upcall. Except for cases, when the flow rule is already removed. When does that happen? When are flow rules removed from the datapaths? We investigated this in \cref{design:flow-eviction}.
 
-\begin{itemize}
-    \item When are flow rules removed from the datapaths? (\cref{design:flow-eviction})
-    \item What is the cost of an upcall when measured from the user space? (\cref{design:upcall-cost})
-    \item Which packets generate upcalls? (\cref{design:upcall-generators})
-    \item What is the impact of artificial upcall-only traffic on the performance of the whole system? (\cref{design:upcall-impact})
-\end{itemize}
+    \item What is the cost of an upcall? How much slower is the slow path compared to the fast path? Can we infer whether upcall-only traffic will be a significant performance problem? (\cref{design:upcall-cost})
 
-The following sections describe our methods to answer the questions. The next chapter discusses our results.
+    \item Once we knew the flow rule timeout, we could investigate packet types generating upcalls. Which headers values in packets lead to a generation of new flow rules? (\cref{design:upcall-generators})
 
+    \item The last and most significant part - what is the impact of artificial upcall-only traffic on the performance of the whole system? We investigated this in \cref{design:upcall-impact}.
+\end{enumerate}
 
-% quote https://developers.redhat.com/articles/2022/02/07/investigating-cost-open-vswitch-upcalls-linux
+Most of the questions above can be approached using both static and dynamic analysis. At the beginning of our investigation, we were not familiar with the relevant code, so we always started with a dynamic analysis. After the initial practical experiment, we searched for the code causing the observed behavior.
 
+In the following sections, we discuss the design of our experiments and their results. Every following section corresponds to one of the investiagation parts mentioned above.
 
 \section{Flow eviction timeout}
 \label{design:flow-eviction}
@@ -27,7 +25,6 @@ The following sections describe our methods to answer the questions. The next ch
 We can observe an effect of an upcall using the \ident{ping} tool. The first packet has higher latency than the rest of the ICMP packets.
 
 \vspace{0.5cm}
-
 \begin{lstlisting}[caption=Output of the \ident{ping} command in the virtualized environment, captionpos=b, basicstyle=\ttfamily\scriptsize]
 [root@kb2 ~]# ping -c 5 kb3
 PING kb3 (192.168.1.223) 56(84) bytes of data.
@@ -67,8 +64,6 @@ We chose the interval based on non-rigorous preliminary experiments. After plott
     \item The third ping will have the same results as the second.
 \end{itemize}
 
-Results of this experiment can be found in \cref{res:eviction-timeout}.
-
 \subsection{Results}
 \label{res:eviction-timeout}
 
@@ -81,7 +76,7 @@ Results of this experiment can be found in \cref{res:eviction-timeout}.
 
 \paragraph{The eviction timeout} The measured latencies of the experiment (\cref{fig:plot-eviction-timeout}) show the flow rule eviction taking effect about $10$ seconds after the last datapath rule installation. The observed value is not exact, but it is probably reasonable to assume the developers chose a nice-looking number. We hypothesize that the noise in the location of the increase is introduced mainly by infrequent eviction checks.
 
-Following these experimental findings, we searched the source code and it specifies exactly $10$ seconds as the default eviction timeout. The experimental findings are consistent with the source code. The default rule timeout defined in the file \ident{ofproto/ofproto.h}:
+Following these experimental findings, we searched the source code and it specifies exactly $10$ seconds as the default eviction timeout. The experimental findings are consistent with the source code. The default rule timeout is defined in the file \ident{ofproto/ofproto.h} as:
 \begin{verbatim}
 #define OFPROTO_MAX_IDLE_DEFAULT 10000 /* ms */
 \end{verbatim}
@@ -125,19 +120,17 @@ The third RTT measurement behaves as expected by our hypothesis. We shortly expe
 \section{Cost of an upcall}
 \label{design:upcall-cost}
 
-Eelco Chaudron investigated the cost of an upcall using eBPF to measure upcall cost directly in the kernel \cite{UpcallCost}. However, as we saw in the previous section, upcalls have visible effects outside of the kernel and we can measure them directly.
+Eelco Chaudron investigated the cost of an upcall in OVS \cite{UpcallCost} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{150}{\us} and \qty{10}{\ms} extra compared to the fast path. However, as we saw in the previous section, upcalls have visible effects outside of the kernel and we can measure them directly.
 
 The unchanged experiment devised in the previous section provides us with a direct measurement of the observable upcall effect. In each data point, we can subtract the two round-trip times to get an insight into how much time an upcall costs.
 
-While this measurement methodology leads to less precise results than when directly measuring the in-kernel execution time using eBPF, we can use it to measure the upcall cost without special privileges on publicly deployed cloud hosting services.\todo{má smysl tohle zmiňovat, když to nezkusím? Napsal jsem do MetaCentra a domluvili jsme se, ze se mi ozvou. Ale zatim nic.}
-
-Our results can be found in \cref{res:upcall-cost}.
+% While this measurement methodology leads to less precise results than when directly measuring the in-kernel execution time using eBPF, we can use it to measure the upcall cost without special privileges on publicly deployed cloud hosting services.\todo{má smysl tohle zmiňovat, když to nezkusím? Napsal jsem do MetaCentra a domluvili jsme se, ze se mi ozvou. Ale zatim nic.}
 
 \subsection{Results}
 \label{res:upcall-cost}
 
 \paragraph{Upcall processing cost}
-As discussed in \cref{chap:design}, the round trip time increase can be attributed to the cost of upcall processing. In the previous section, we noticed an increased latency with the second RTT measurement, possibly a cache miss in the kernel datapath.  We can estimate the cost of an upcall using this data. We calculated the difference between the first and the second ping measurements and assume the result is the lower bound for the upcall cost. Either our hypothesis about the cache miss is correct. Then the difference would be exactly the time spent processing the upcall. Or, we are wrong and the higher second ping latencies are caused by some additional factor that is not normally present. In that case, the upcall cost would be certainly equal to or higher than our result. We used only the data points with above $10.5$ seconds since the previous measurement.
+As discussed in \cref{chap:design}, the round trip time increase can be attributed to the cost of upcall processing. In the previous section, we noticed an increased latency with the second RTT measurement, possibly a cache miss in the kernel datapath.  We can estimate the cost of an upcall using this data. We calculated the difference between the first and the second ping measurements and assume the result is the lower bound for the upcall cost. Either our hypothesis about the cache miss is correct. Then the difference would be exactly the time spent processing the upcall. Or, we are wrong and the higher second ping latencies are caused by some additional factor that is not normally present. In that case, the upcall cost would be certainly equal to or higher than our result. For our calculation, we used only latency measurements with the delay since the previous measurement larger than $10.5$ seconds.
 
 % QT_QPA_PLATFORM=xcb python postprocessing/randomized_eviction_timeout.py results/randomized_eviction_timeout/*.csv
 \begin{table}[h!]
@@ -172,6 +165,8 @@ My sample runs have shown what I want to emphasize in this article: The way the 
 
 And he shows that under stress, the average upcall cost can be $29367.91$ \si{\micro\second} ($n = 13807$). Therefore, all we can say is that our results are in the range of possible upcalls costs according to his article.
 
+Due to the variance, these results also do not allow us to estimate the impact of an upcall heavy traffic on the overall system performance. According to Chauldron's article, the upcall processing is batched and therefore individual upcalls have a different associated latency cost than an upcall flood.
+
 %┌────────────┬───────────────────────────┬─────────────┬─────────────┬───┬─────────────┬──────────────┬──────────────┬─────────────┐
 %│ describe   ┆ us_since_last_measurement ┆ us_latency1 ┆ us_latency2 ┆ … ┆ us_latency5 ┆ first_second ┆ second_third ┆ first_third │
 %│ ---        ┆ ---                       ┆ ---         ┆ ---         ┆   ┆ ---         ┆ ---          ┆ ---          ┆ ---         │
@@ -191,9 +186,7 @@ And he shows that under stress, the average upcall cost can be $29367.91$ \si{\m
 \section{Packets generating upcalls}
 \label{design:upcall-generators}
 
-To stress-test the slow path, we must generate upcalls consistently. We have to find types of packets that will repeatedly miss all installed flow rules in the OVS datapath. We have a choice between a static analysis and a dynamic analysis of OVS.
-
-We chose to approach the problem using dynamic analysis. We decided on dynamic analysis instead of static analysis because the results depend on OVS, the whole SDN, and its configuration. For static analysis, the search space is just too large. Also, the dynamic analysis tooling can be later reused on different OVS deployments than ours.
+To stress-test the slow path, we have to be able to generate upcalls consistently. We have to find types of packets that will repeatedly miss all installed flow rules in the OVS datapath.
 
 Our experiment sends varying packets in batches based on their type and monitors the upcalls and flow table changes using kprobes in the kernel and user statically-defined tracing (USDT) probes in \ident{ovs-vswitchd}.
 
@@ -202,7 +195,7 @@ The flow rules in OVS datapaths use the \href{https://elixir.bootlin.com/linux/v
 We used Scapy to generate the packets. For example, the code to generate random TTL values in an IPv4 packet looks like this:
 
 
-\pagebreak  % this looks the best
+%\pagebreak  % this looks the best
 \begin{verbatim}
 tag("IP(ttl)")
 sendp(
@@ -215,7 +208,7 @@ sendp(
 sleep(11)  # more than the eviction timeout
 \end{verbatim}
 
-Because we used dynamic analysis, we can not be certain that we covered all possible cases. We can draw some general conclusions from the measurement results and look into the source code for additional insights. However, there is always the possibility that we missed something.
+Because we used dynamic analysis, we cannot be certain that we covered all possible cases. We can draw some general conclusions from the measurement results and look into the source code for additional insights. There is always the possibility that we missed something. However, a complete static analysis would be extremely time-consuming. The results depend on OVS, the whole SDN, and its configuration. The search space is just too large. For that reason, we did not attempt to use static analysis to verify or expand upon our results.
 
 \subsection{Results}
 \label{res:upcall-generators}
@@ -244,6 +237,7 @@ recirc_id(0),in_port(9),
 
 OVN has a feature called port security which can be enabled for logical switch ports. By enabling port security on a port, MAC spoofing is prevented and all packets with the wrong MAC address are dropped. OVN-Kubernetes enables this feature. The command \ident{ovn-nbctl list Logical\_Switch\_Port} prints configuration for all logical switch ports, including information about port security. The following snippet is part of the command's output, a description of the logical switch port used for our test pod called \ident{arch}.
 
+\pagebreak
 \begin{verbatim}
 _uuid               : cc7a2d01-52b4-4529-a026-55bf9d46dc56
 addresses           : ["0a:58:0a:f4:01:05 10.244.1.5"]
@@ -338,8 +332,6 @@ Only instead of sending the packets one by one every time, we send them in batch
 \paragraph{The experiment}
 For our experiment, we stressed OVS using our tool and monitored the system. We mainly measured OVS's memory consumption, the load average of the whole system and latencies observable from the \ident{victim} pod. We always started with a freshly restarted \ident{ovs-vswitchd}.
 
-The results of the experiment can be found in \cref{res:upcall-stress}.
-
 \subsection{Performance with unlimited resources}
 \label{subsec:standard-behavior}
 
@@ -402,7 +394,7 @@ Same as with the system load, memory usage bypasses resource accounting. A conta
 
 \Cref{fig:plot-packet-flood-50k-latency} shows the results of a different run of the same experiment. The plot shows only the latencies measured from the \ident{victim} pod. The ICMP tests target the node IP address of \kb{1}, and the UDP tests target the node IP address of \kb{3}. The horizontal lines mark the ranges of samples used for a statistical test.
 
-While there does not seem to be any practically significant difference between the stressed and non-stressed systems in the round-trip times, the non-stressed UDP samples ($n=1876$, $M=175980 \pm 1320$ \si{\nano\second}\footnote{$95\%$ confidence interval, assuming normal distribution}) are smaller than the stressed UDP samples ($n=2255$, $M=175980 \pm 1320$ \si{\nano\second}) with statistical significance (Welch's t-test, $p=2.17 \cdot 10^{-37}$). The difference between the means is $11576$ \si{\nano\second}.
+While there does not seem to be any substantial difference between the stressed and non-stressed systems in the round-trip times, the non-stressed UDP samples ($n=1876$, $\bar{x}=175980 \pm 1320$ \si{\nano\second}\footnote{$95\%$ confidence interval, assuming normal distribution}) are smaller than the stressed UDP samples ($n=2255$, $\bar{x}=175980 \pm 1320$ \si{\nano\second}) with statistical significance (Welch's t-test, $p=2.17 \cdot 10^{-37}$). The difference between the means is $11576$ \si{\nano\second}.
 
 % stressed UDP latency
 % shape: (9, 3)
