@@ -6,7 +6,7 @@ Start by preparing 3 standard Fedora 38 installations, all in a single LAN, idea
 In the attachment, there are two scripts prefixed with \ident{setup}. First, we advise editing both of the scripts:
 
 \begin{itemize}
-    \item Edit the \ident{setup1-general.sh} script and change the network configuration function, \ident{configure\_systemd\_networkd}, to match your network environment. Especially the names of your network interfaces.
+    \item Edit the \ident{setup1-general.sh} script and change the network configuration function, \ident{configure\_systemd\_networkd}, to match your network environment. Especially, the names of your network interfaces.
 
     \item Edit the \ident{setup2-master.sh} script and change \ident{\$IMAGE} variable with the qualified name of your OVS container (instructions on how to build it in \cref{chap:ovs-mod}).
 \end{itemize}

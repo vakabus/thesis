@@ -1,7 +1,10 @@
 \chapter{Experiment design}
 \label{chap:design}
 
-As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore, some packets require much more processing and can slow the system down. Eelco Chaudron investigated the cost of an upcall in OVS \cite{UpcallCost} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{150}{\us} and \qty{10}{\ms} extra compared to the fast path.
+As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore, some packets require much more processing and can slow the system down. 
+\todo{rationale for the questions and direction of research}
+
+Eelco Chaudron investigated the cost of an upcall in OVS \cite{UpcallCost} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{150}{\us} and \qty{10}{\ms} extra compared to the fast path.
 
 Based on this knowledge, we tried to answer the following questions about OVS internals:
 
@@ -39,7 +42,7 @@ PING kb3 (192.168.1.223) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.304/0.536/1.185/0.326 ms
 \end{lstlisting}
 
-The first packet delay is absent when we run the \ident{ping} command for the second time shortly after the first. The higher latency is visible again. This behavior can be explained by a flow rule eviction timeout that removes the rule from the datapath's forwarding table.
+To repeat the observation, we must not send similar ICMP packets for several seconds. The higher latency is measurable only when we wait. This behavior can be explained by a flow rule eviction timeout that removes the rule from the datapath's forwarding table.
 
 Assuming the timeout stays constant, we can measure it by varying the interval between ICMP packets. The dependency between the measured latency and the time delay should be constant except for one sharp increase in latency when the delays get longer than the timeout.
 
@@ -51,7 +54,7 @@ We experimented in the following way:
     \item sleep for $D$ seconds
     \item run \ident{ping -c 3 -i 0.01 192.168.1.221}
     \item log $D$ and both round trip times
-    \item goto step 1 until we have enough
+    \item go to step 1 until we have enough samples
 \end{enumerate}
 
 We chose the interval based on non-rigorous preliminary experiments. After plotting RTT's dependence on the delay $D$, we expect to see:
@@ -71,7 +74,7 @@ Results of this experiment can be found in \cref{res:eviction-timeout}.
 
 Eelco Chaudron investigated the cost of an upcall using eBPF to measure upcall cost directly in the kernel \cite{UpcallCost}. However, as we saw in the previous section, upcalls have visible effects outside of the kernel and we can measure them directly.
 
-The unchanged experiment devised in the previous section provides us with a direct measurement of the observable upcall effect. In each data point, we can subtract the two round-trip-times to get an insight into how much time upcall costs.
+The unchanged experiment devised in the previous section provides us with a direct measurement of the observable upcall effect. In each data point, we can subtract the two round-trip times to get an insight into how much time an upcall costs.
 
 While this measurement methodology leads to less precise results than when directly measuring the in-kernel execution time using eBPF, we can use it to measure the upcall cost without special privileges on publicly deployed cloud hosting services.\todo{má smysl tohle zmiňovat, když to nezkusím? Napsal jsem do MetaCentra a domluvili jsme se, ze se mi ozvou. Ale zatim nic.}
 
@@ -80,7 +83,7 @@ Our results can be found in \cref{res:upcall-cost}.
 \section{Packets generating upcalls}
 \label{design:upcall-generators}
 
-To stress-test the slow path, we have to be able to generate upcalls consistently. We have to find types of packets that will repeatedly miss all installed flow rules in the OVS datapath. We have a choice between a static analysis and a dynamic analysis of OVS.
+To stress-test the slow path, we must generate upcalls consistently. We have to find types of packets that will repeatedly miss all installed flow rules in the OVS datapath. We have a choice between a static analysis and a dynamic analysis of OVS.
 
 We chose to approach the problem using dynamic analysis. We decided on dynamic analysis instead of static analysis because the results depend on OVS, the whole SDN, and its configuration. For static analysis, the search space is just too large. Also, the dynamic analysis tooling can be later reused on different OVS deployments than ours.
 

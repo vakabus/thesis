@@ -44,6 +44,10 @@ nst = udp_rtt_latencies.filter(pl.col("ts").is_between(*NON_STRESSED_INTERVAL))
 print(nst.describe())
 print(mean_confidence_interval(nst['latency_ns']))
 
+print("t-test:")
+a = scipy.stats.ttest_ind(st['latency_ns'], nst['latency_ns'], equal_var=False, alternative="greater")
+print(a)
+
 
 
 print("Data loading finished, rendering plots...")

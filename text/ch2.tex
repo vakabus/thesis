@@ -6,20 +6,20 @@ This chapter describes the environment we used for running our experiments. The 
 \section{Hardware}
 \label{sec:hw-env}
 
-For our research, we used two experimental cluster with different hardware configurations. One installation run virtualized on Proxmox VE with only a single physical host. The other installation used dedicated hardware. When we write about an experiment and do not specify where it runs, we are presenting results from the cluster on dedicated hardware. However, most of the measurements can be replicated in a virtualized environment without a significant impact on the outcome.
+For our research, we used two experimental clusters with different hardware configurations. One installation run virtualized on Proxmox VE with only a single physical host. The other installation used dedicated hardware. When we write about an experiment and do not specify where it runs, we are presenting results from the cluster on dedicated hardware. However, most of the measurements can be replicated in a virtualized environment without a significant impact on the outcome.
 
 \paragraph{Virtualized installation}
 We used the virtualized environment for development and debugging. The physical host was running Proxmox VE 7.4-3, and it was configured with an Intel\textsuperscript{\textregistered} Core\textsuperscript{TM} i7-3770 CPU running at 3.40 GHz with $4$ cores, $8$ threads, and $31.23$ GiB of RAM.
 
 The virtual machines used for the cluster nodes were each configured with $4$ virtual cores and $4$ GiB of RAM. We had initially started experimenting with $2$ CPU cores per node to prevent overprovisioning, but our workloads always fully stressed only one node (always \kb{2}), and we were mostly interested in system behavior with multiple threads. The overprovisioning did not seem to cause any problems.
 
-The cluster nodes were equipped with $2$ virtual network interfaces connected to two virtual Linux bridges on the host. We used one interface for system management and WAN access. Tthe other bridge was used for cluster interconnect. We did not artificially limit the throughput or latency of the link between nodes. When measured between \kb{2} and \kb{3} using \ident{iperf3} with the default configuration and \ident{ping} with $100$ samples, the throughput was $14.5$ Gbps and the average round trip time $0.383$ ms.
+The cluster nodes were equipped with $2$ virtual network interfaces connected to two virtual Linux bridges on the host. We used one interface for system management and WAN access. The other bridge was used for cluster interconnect. We did not artificially limit the throughput or latency of the link between nodes. When measured between \kb{2} and \kb{3} using \ident{iperf3} with the default configuration and \ident{ping} with $100$ samples, the throughput was $14.5$ Gbps and the average round trip time $0.383$ ms.
 
 \paragraph{Dedicated hardware}
 
 We used the cluster with dedicated hardware to validate the results observed in the virtual environment. The nodes were Dell PowerEdge R730 servers, configured with Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} CPU E5-2690 v4 running at 2.60GHz with $14$ cores, $28$ threads, and $131$ GB of RAM.
 
-Similar to the virtualized nodes, the dedicated nodes had 2 network interfaces. One management 1 GbE interface was connected to the Internet, and another cluster only 10 GbE interface was connected to a switch. We configured the switch to use VLANs to isolate the cluster traffic from all other ports. While we did not have the opportunity to use a fully dedicated switch, the switch should have had enough capacity that it would not be a bottleneck. The average round trip time between \kb{2} and \kb{3} (\ident{ping -c 100}) was $0.104$ ms.
+Similar to the virtualized nodes, the dedicated nodes had 2 network interfaces. One management 1 GbE network interface was connected to the Internet, and another cluster with a 10 GbE interface was connected to a switch. We configured the switch to use VLANs to isolate the cluster traffic from all other ports. While we did not have the opportunity to use a fully dedicated switch, the switch should have had enough capacity so that it would not be a bottleneck. The average round trip time between \kb{2} and \kb{3} (\ident{ping -c 100}) was $0.104$ ms.
 
 \section{Software environment}
 \label{sec:sw-env}
@@ -46,7 +46,7 @@ resources:
         memory: 400Mi
 \end{verbatim}
 
-We have manually removed this limit for most of our experiments. We have also tested with the limit active and we always explicitly mention it when it is the case.
+We have manually removed this limit for most of our experiments. We have also tested with the limit active and we always explicitly mention it when this is the case.
 
 \subsection{OVS modifications}
 
