@@ -394,7 +394,7 @@ Same as with the system load, memory usage bypasses resource accounting. A conta
 
 \Cref{fig:plot-packet-flood-50k-latency} shows the results of a different run of the same experiment. The plot shows only the latencies measured from the \ident{victim} pod. The ICMP tests target the node IP address of \kb{1}, and the UDP tests target the node IP address of \kb{3}. The horizontal lines mark the ranges of samples used for a statistical test.
 
-While there does not seem to be any substantial difference between the stressed and non-stressed systems in the round-trip times, the non-stressed UDP samples ($n=1876$, $\bar{x}=175980 \pm 1320$ \si{\nano\second}\footnote{$95\%$ confidence interval, assuming normal distribution}) are smaller than the stressed UDP samples ($n=2255$, $\bar{x}=175980 \pm 1320$ \si{\nano\second}) with statistical significance (Welch's t-test, $p=2.17 \cdot 10^{-37}$). The difference between the means is $11576$ \si{\nano\second}.
+While there does not seem to be any substantial difference between the stressed and non-stressed systems in the round-trip times, the non-stressed UDP samples ($n=1876$, $\bar{x}=175980 \pm 1320$ \si{\nano\second}\footnote{$95\%$ confidence interval, assuming normal distribution}) are smaller than the stressed UDP samples ($n=2255$, $\bar{x}=164404 \pm 1174$ \si{\nano\second}) with statistical significance (Welch's t-test, $p=2.17 \cdot 10^{-37}$). The difference between the means is $11576$ \si{\nano\second}.
 
 % stressed UDP latency
 % shape: (9, 3)
