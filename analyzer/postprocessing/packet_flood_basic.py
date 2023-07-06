@@ -39,15 +39,14 @@ fr = window_frequency(trace_upcalls, 0.1)
 
 # resources
 #ax2.scatter(vswitchd["ts"], vswitchd["vswitchd_threads"] * 10000, label="vswitchd threads * 10000", color="green", marker=".")
-ax2.plot(vswitchd["ts"], vswitchd["vswitchd_rss_bytes"] / 2**20, label="ovs-vswitchd RSS", color="green")
-ax2.set_ylabel("MiB")
+ax2.plot(vswitchd["ts"], vswitchd["vswitchd_rss_bytes"] / 2**20, label="ovs-vswitchd RSS in MiB", color="green")
 
 ax4.plot(loadavg["ts"], loadavg["loadavg1"], label="load average (1min)")
 
 # flow table size
 #ax.plot(trace_table['ts'], trace_table['flows'], label="flow table size")
 ax.plot(fr['mts'], fr['freq'], label="upcalls per second (100ms window)", color="C1")
-ax.plot(dpctl_log['ts'], dpctl_log['flows'], label="flow table size", color="C0")
+ax.plot(dpctl_log['ts'], dpctl_log['flows'], label="flow table size (#entries)", color="C0")
 
 ax.legend(loc='upper left')
 ax2.legend(loc='upper left')

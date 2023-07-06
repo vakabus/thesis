@@ -58,7 +58,7 @@ ax2.scatter(icmp_err["ts"], icmp_err["ts"] * 0 - 2_000, label="ping cmd error", 
 # flow table
 #ax.plot(trace_table['ts'], trace_table['flows'], label="flow table size")
 ax.plot(fr['mts'], fr['freq'], label="upcalls per second (100ms window)", color="C1")
-ax.plot(dpctl_log['ts'], dpctl_log['flows'], label="flow table size", color="C0")
+ax.plot(dpctl_log['ts'], dpctl_log['flows'], label="flow table size (#entries)", color="C0")
 ax.scatter(usdt_flow_limit['ts'], usdt_flow_limit['flow_limit'], label="flow limit (ovs-vswitchd)", color="C3", marker=".")
 ax.hlines(usdt_flow_limit['flow_limit'][:-1], (usdt_flow_limit['ts'] - usdt_flow_limit['duration_ns'].cast(pl.Float64) / 1_000_000_000)[1:], usdt_flow_limit['ts'][1:], linewidth=0.5, color="C3", label="revalidator loop duration")
 
