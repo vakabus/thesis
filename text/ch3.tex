@@ -1,28 +1,32 @@
 \chapter{Experiments}
 \label{chap:design}
 
-As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore packets generating upcalls are more expensive to process than the other packets. Can we reliably generate upcalls? And what happens when we flood OVS with such traffic? In this chapter, we will try to answer these questions.
+\paragraph{Origin of the experiments}
+At the beginning of our research into the performance and scalability of common Kubernetes and Open vSwitch configurations, we did not know which part of the networking stack will lead to interesting results and where to focus on. So we started practically experimenting with packet handling and always continued based on our previous results. In the end, our exploration led us to focus on upcall handling and flow rule management.
 
-We split our research into the following parts, always building on the previous results:
+As we showed in \cref{chap:refs}, OVS inserts flow rules into datapaths on demand after upcalls. Therefore packets generating upcalls are more expensive to process than the other packets. We tried to create a network traffic, which would reliably generate upcalls to study the behavior of OVS under stress. This chapter describes the details of our research.
+
+\paragraph{The experiments}
+We split our research into the following parts:
 
 \begin{enumerate}
     \item We investigated flow rule handling in OVS. If we sent the same packet twice, the second will always hit a rule in the datapath and it will not generate an upcall. Except for cases, when the flow rule is already removed. When does that happen? When are flow rules removed from the datapaths? We investigated this in \cref{design:flow-eviction}.
 
     \item What is the cost of an upcall? How much slower is the slow path compared to the fast path? Can we infer whether upcall-only traffic will be a significant performance problem? (\cref{design:upcall-cost})
 
-    \item Once we knew the flow rule timeout, we could investigate packet types generating upcalls. Which headers values in packets lead to a generation of new flow rules? (\cref{design:upcall-generators})
+    \item Once we knew the flow rule timeout, we could investigate packet types generating upcalls. Which packet header values lead to a generation of new flow rules? (\cref{design:upcall-generators})
 
     \item The last and most significant part - what is the impact of artificial upcall-only traffic on the performance of the whole system? We investigated this in \cref{design:upcall-impact}.
 \end{enumerate}
 
-Most of the questions above can be approached using both static and dynamic analysis. At the beginning of our investigation, we were not familiar with the relevant code, so we always started with a dynamic analysis. After the initial practical experiment, we searched for the code causing the observed behavior.
+Most of the questions above can be approached using both static and dynamic analysis (analyzing the source code or analyzing the behavior of a running system). At the beginning of our investigation, we were not familiar with the relevant code and we also did not know what exactly to focus on, so we always started with a dynamic analysis, because it allowed us to observe the behavior of the whole networking stack. After the initial practical experiment, we searched for the code causing the observed behavior.
 
-In the following sections, we discuss the design of our experiments and their results. Every following section corresponds to one of the investiagation parts mentioned above.
+In the following sections, we discuss the design of our experiments and their results. Every following section corresponds to one of the investigation parts mentioned above.
 
 \section{Flow eviction timeout}
 \label{design:flow-eviction}
 
-We can observe an effect of an upcall using the \ident{ping} tool. The first packet has higher latency than the rest of the ICMP packets.
+We can observe an effect of an upcall using the \ident{ping} tool. The first packet has higher latency than the rest of the ICMP packets because it generates an upcall and a new datapath flow rule (can be verified by \ident{ovs-dpctl dump-flows}).
 
 \vspace{0.5cm}
 \begin{lstlisting}[caption=Output of the \ident{ping} command in the virtualized environment, captionpos=b, basicstyle=\ttfamily\scriptsize]
@@ -64,6 +68,8 @@ We chose the interval based on non-rigorous preliminary experiments. After plott
     \item The third ping will have the same results as the second.
 \end{itemize}
 
+The practical nature of this experiment allows us to check OVS's configuration even on systems where we do not have privileges to access OVS directly.
+
 \subsection{Results}
 \label{res:eviction-timeout}
 
@@ -89,7 +95,7 @@ if (kill_them_all || (used && used < now - max_idle)) {
 }
 \end{verbatim}
 
-The eviction is handled by the revalidator threads, which run periodically roughly every 500ms. This confirms our hypothesis about the roughly 500ms spread of the observable timeout effect.
+The eviction is handled by the revalidator threads, which run periodically roughly every 500ms. This confirms our hypothesis about the $~500$ms spread of the observable timeout effect.
 
 \begin{verbatim}
 // in file ofproto/ofproto.h:321
@@ -102,10 +108,10 @@ poll_timer_wait_until(start_time + MIN(ofproto_max_idle,
 \end{verbatim}
 
 \paragraph{Difference in latency below timeout}
-\Cref{fig:plot-eviction-timeout} shows a difference between round trip times for the first and second packet even below the eviction timeout. The difference is small, so we assume that this can be caused by CPU caches. We did not investigate this further.
+\Cref{fig:plot-eviction-timeout} shows a difference between round trip times for the first and second packet even for delays shorter than the eviction timeout. The difference is small, so we assume that this can be caused by CPU caches. We did not investigate this further.
 
 \paragraph{Increase in round trip time of the second ping}
-\Cref{fig:plot-eviction-timeout} also shows an increased latency for the second ping after the eviction timeout. We hypothesize that it could be caused by the fixed size flow lookup cache described in \cref{subsec:matching-algo}. The upcall installs the new flow, but the lookup cache is filled only after the first use (i.e. the second packet of the flow, the second ICMP ping). In other words, if we had three packets, their journey through the \ident{openvswitch} module would be as follows:
+\Cref{fig:plot-eviction-timeout} also shows an increased latency for the second ping after the eviction timeout. We hypothesize that it could be caused by the fixed size flow lookup cache described in \cref{subsec:matching-algo}. The upcall installs the new flow, but the lookup cache is filled only after the first use (i.e. the second packet of the flow, the second ICMP ping). In other words, if we would send multiple packets, their journey through the \ident{openvswitch} module would be as follows:
 
 \begin{enumerate}
     \item A cache miss, followed by a flow table miss. Leads to an upcall and a new flow rule.
@@ -122,9 +128,11 @@ The third RTT measurement behaves as expected by our hypothesis. We shortly expe
 
 Eelco Chaudron investigated the cost of an upcall in OVS \cite{UpcallCost} using eBPF probes in the Linux kernel. His experiments show that processing a packet through the slow path can take anywhere between \qty{150}{\us} and \qty{10}{\ms} extra compared to the fast path. However, as we saw in the previous section, upcalls have visible effects outside of the kernel and we can measure them directly.
 
-The unchanged experiment devised in the previous section provides us with a direct measurement of the observable upcall effect. In each data point, we can subtract the two round-trip times to get an insight into how much time an upcall costs.
+The unchanged experiment devised in the previous section provides us with a direct measurement of the observable upcall effect. The difference between the first packet RTT and the second packet RTT should correspond to how much time an upcall costs.
 
 % While this measurement methodology leads to less precise results than when directly measuring the in-kernel execution time using eBPF, we can use it to measure the upcall cost without special privileges on publicly deployed cloud hosting services.\todo{má smysl tohle zmiňovat, když to nezkusím? Napsal jsem do MetaCentra a domluvili jsme se, ze se mi ozvou. Ale zatim nic.}
+
+This experiment assumes that ICMP packet processing in OVS is the same as for all other types of packets. We believe this is most likely correct because OVS generates datapath flow rules for handling ICMP packets the same as it does for all other packets. Also, we did not find any evidence of ICMP packets being handled specially.
 
 \subsection{Results}
 \label{res:upcall-cost}
@@ -192,11 +200,12 @@ Our experiment sends varying packets in batches based on their type and monitors
 
 The flow rules in OVS datapaths use the \href{https://elixir.bootlin.com/linux/v6.2.15/source/net/openvswitch/flow.h\#L75}{\ident{struct sw\_flow\_key}} to represent the flow key. For every field of that structure, our measurement tool sends 1000 packets with the corresponding packet header field randomized and everything else fixed at arbitrary values.
 
-We used Scapy to generate the packets. For example, the code to generate random TTL values in an IPv4 packet looks like this:
+For example, let us consider the IPv4 TTL field. Given any valid IPv4 packet, we want to send the same packet (bytes) 1000 times, each time with random bits in the location of the TTL header field. The values of all other header fields except for TTL stay fixed, so that their changes do not generate any new flow rules. 
 
+We used the Scapy project to generate the packets. The following code snippet is an example from our tool:
 
 %\pagebreak  % this looks the best
-\begin{verbatim}
+\begin{Verbatim}
 tag("IP(ttl)")
 sendp(
     Ether(dst="aa:bb:cc:dd:ee:ff") / IP(
@@ -206,9 +215,9 @@ sendp(
     count=1000
 )
 sleep(11)  # more than the eviction timeout
-\end{verbatim}
+\end{Verbatim}
 
-Because we used dynamic analysis, we cannot be certain that we covered all possible cases. We can draw some general conclusions from the measurement results and look into the source code for additional insights. There is always the possibility that we missed something. However, a complete static analysis would be extremely time-consuming. The results depend on OVS, the whole SDN, and its configuration. The search space is just too large. For that reason, we did not attempt to use static analysis to verify or expand upon our results.
+Because we probed a running system and we did not analyze all code paths, we cannot be certain that we covered all possible cases for generating new flow rules. We can draw some general conclusions from the measurement results and look into the source code for additional insights. There is always the possibility that we missed something. However, a complete static analysis would be extremely time-consuming. The results depend on OVS, the whole SDN, and its configuration. The search space is just too large. For that reason, we did not attempt to use static analysis to verify or expand upon our results.
 
 \subsection{Results}
 \label{res:upcall-generators}
@@ -229,16 +238,17 @@ Because we used dynamic analysis, we cannot be certain that we covered all possi
 
 Varying the Ethernet source address in the unicast range (the least significant bit of the first byte has to be 1) generates new upcalls. The flow rules being inserted into the flow table are similar to the following example\footnote{dumped with \ident{ovs-dpctl dump-flows}}:
 
-\begin{verbatim}
+\begin{Verbatim}[fontsize=\small]
 recirc_id(0),in_port(9),
     eth(src=04:6a:68:88:2b:eb),eth_type(0x0800),ipv4(frag=no),
     packets:0, bytes:0, used:never, actions:drop
-\end{verbatim}
+\end{Verbatim}
 
 OVN has a feature called port security which can be enabled for logical switch ports. By enabling port security on a port, MAC spoofing is prevented and all packets with the wrong MAC address are dropped. OVN-Kubernetes enables this feature. The command \ident{ovn-nbctl list Logical\_Switch\_Port} prints configuration for all logical switch ports, including information about port security. The following snippet is part of the command's output, a description of the logical switch port used for our test pod called \ident{arch}.
 
-\pagebreak
-\begin{verbatim}
+%\pagebreak
+\vspace{0.5cm}
+\begin{Verbatim}[fontsize=\footnotesize]
 _uuid               : cc7a2d01-52b4-4529-a026-55bf9d46dc56
 addresses           : ["0a:58:0a:f4:01:05 10.244.1.5"]
 dhcpv4_options      : []
@@ -259,7 +269,8 @@ tag                 : []
 tag_request         : []
 type                : ""
 up                  : true
-\end{verbatim}
+\end{Verbatim}
+
 
 Quoting the OVN documentation \cite{OVNNBMan}, a section about the port security option\footnote{The documentation calls it a column because the configuration is stored in a database column}:
 
@@ -330,7 +341,7 @@ while True:
 Only instead of sending the packets one by one every time, we send them in batches using \ident{io\_uring} if it is possible. When we set the interval to \qty{1}{\ns} (zero is not possible due to division by zero), we can reach roughly 210k packets per second in a single thread on the dedicated test server.
 
 \paragraph{The experiment}
-For our experiment, we stressed OVS using our tool and monitored the system. We mainly measured OVS's memory consumption, the load average of the whole system and latencies observable from the \ident{victim} pod. We always started with a freshly restarted \ident{ovs-vswitchd}.
+For our experiment, we stressed OVS using our tool and monitored the system. We mainly measured OVS's memory consumption, the load average of the whole system, latencies from the \ident{victim} pod to the node \kb{1} (ICMP) and to the \ident{reflector} pod on \kb{3} (UDP). We mainly expected an increased processing time and therefore increased latencies compared to latencies in an idle system. We also focused on memory consumption and CPU load because we noticed resource limits placed upon OVS containers in the default OVN-Kubernetes deployment configuration. The experiments always started with a freshly restarted \ident{ovs-vswitchd}.
 
 \subsection{Performance with unlimited resources}
 \label{subsec:standard-behavior}
@@ -365,7 +376,7 @@ In both experiments, the flow table size fluctuates. With fewer upcalls, when on
     \end{itemize}
 \end{quote}
 
-In other words, the revalidator thread checks flow rules in batches and whenever the flow table grows above the limit, a shorter eviction timeout is applied to the current batch. We hypothesize that the high amplitude of the fluctuations is caused by synchronization between multiple threads. There are multiple revalidator threads, each has its flow rule dump thread\footnote{\url{https://github.com/openvswitch/ovs/blob/474a179aff6c/ofproto/ofproto-dpif-upcall.c\#L2751}} and the actual rule deletion is handled in the kernel after receiving a deletion command over a netlink socket which has an internal queue. We did not confirm nor disprove the hypothesis.
+In other words, the revalidator thread checks flow rules in batches and whenever the flow table grows above the limit, a shorter eviction timeout is applied to the current batch. We hypothesize that the high amplitude of the fluctuations is caused by synchronization between multiple threads. There are multiple revalidator threads, each has its \href{https://github.com/openvswitch/ovs/blob/474a179aff6c4199d8007910e3f79f000af9d659/ofproto/ofproto-dpif-upcall.c#L2751}{flow rule dump thread} and the actual rule deletion is handled in the kernel after receiving a deletion command over a netlink socket which has an internal queue. We did not confirm nor disprove the hypothesis.
 
 % \paragraph{Upcalls}
 % In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k}, the red dots at the bottom represent individual upcalls. We have randomized their position on the y-axis to improve legibility and better visualize upcall frequency.
@@ -379,9 +390,9 @@ Worryingly though, the additional system load is not attributed to the process c
 
 \paragraph{Memory usage}
 \label{par:memory-usage}
-In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k}, the resident set size of \ident{ovs-vswitchd} increases and stabilizes at slightly less than 2GB. The allocated memory is never released and stays allocated even after the flooding stops. The used memory seems to be proportional to the flow table size.
+In both \cref{fig:plot-packet-flood-bare-50k} and \cref{fig:plot-packet-flood-bare-15k}, the resident set size of \ident{ovs-vswitchd} increases and stabilizes at slightly less than 2GB. The allocated memory is never released back to the operating system and stays allocated to the process even after the flooding stops. The used memory seems to be proportional to the flow table size.
 
-Same as with the system load, memory usage bypasses resource accounting. A container or a VM with minimal resource allowance can thus use more resources than the system administrators configured.
+Same as with the system load, memory usage bypasses resource accounting. A container or a VM with minimal resource allowance can thus use more resources than the system administrators configured. However, the memory usage of \ident{ovs-vswitchd} is capped at a constant regardless of the number of containers used to flood the system. Therefore, this is not a significant attack vector.
 
 \subsubsection{Impact on latency}
 
@@ -392,7 +403,7 @@ Same as with the system load, memory usage bypasses resource accounting. A conta
     \label{fig:plot-packet-flood-50k-latency}
 \end{figure}
 
-\Cref{fig:plot-packet-flood-50k-latency} shows the results of a different run of the same experiment. The plot shows only the latencies measured from the \ident{victim} pod. The ICMP tests target the node IP address of \kb{1}, and the UDP tests target the node IP address of \kb{3}. The horizontal lines mark the ranges of samples used for a statistical test.
+\Cref{fig:plot-packet-flood-50k-latency} shows the results of a different run of the same experiment. The plot shows only the latencies measured from the \ident{victim} pod. The ICMP tests target the node IP address of \kb{1}, and the UDP tests target the \ident{reflector} service provided by a pod on \kb{3}. The horizontal lines mark the ranges of samples used for a statistical test.
 
 While there does not seem to be any substantial difference between the stressed and non-stressed systems in the round-trip times, the non-stressed UDP samples ($n=1876$, $\bar{x}=175980 \pm 1320$ \si{\nano\second}\footnote{$95\%$ confidence interval, assuming normal distribution}) are smaller than the stressed UDP samples ($n=2255$, $\bar{x}=164404 \pm 1174$ \si{\nano\second}) with statistical significance (Welch's t-test, $p=2.17 \cdot 10^{-37}$). The difference between the means is $11576$ \si{\nano\second}.
 
@@ -436,26 +447,26 @@ While there does not seem to be any substantial difference between the stressed 
 
 \subsection{Performance when resource limited}
 
-In \cref{subsec:standard-behavior}, we talked about extra memory and CPU usage of /ident{ovs-vswitchd}. The default containerized deployment of OVN-Kubernetes limits\footnote{\url{https://github.com/ovn-org/ovn-kubernetes/blob/b982b8cadba939c55010829f61eb5ebe4fd90794/dist/templates/ovs-node.yaml.j2\#L84-L90}} \ident{ovs-vswitchd} to 400 MiB of physical memory and two-tenths of a single CPU core. In the remainder of this section, when we write about limiting memory or CPU, we mean using Kubernetes to enforce the resource limit just as the default containerized deployment does it.
+In \cref{subsec:standard-behavior}, we talked about extra memory and CPU usage of \ident{ovs-vswitchd}. The default containerized deployment of OVN-Kubernetes \href{https://github.com/ovn-org/ovn-kubernetes/blob/b982b8cadba939c55010829f61eb5ebe4fd90794/dist/templates/ovs-node.yaml.j2#L84-L90}{limits} \ident{ovs-vswitchd} to 400 MiB of physical memory and two-tenths of a single CPU core. In the remainder of this section, when we write about limiting memory or CPU, we mean using Kubernetes to enforce the resource limit just as the default containerized deployment does it.
 
 \subsubsection{Memory limit}
 \label{subsec:memory}
 We limited the memory usage of \ident{ovs-vswitchd}, leaving the CPU time unlimited. We used the default values for the memory limit, leaving us with the following configuration of the OVS container:
 
-\begin{verbatim}
+\begin{Verbatim}[fontsize=\small]
 resources:
     requests:
         memory: 300Mi
     limits:
         memory: 400Mi
-\end{verbatim}
+\end{Verbatim}
 
 When we flooded the system with upcalls, \ident{ovs-vswitchd} crashed without leaving any meaningful error message behind. During normal operations, everything seemed normal.
 
 We tried to limit the number of flow rules using the following command:
-\begin{verbatim}
+\begin{Verbatim}[fontsize=\small]
 ovs-vsctl set Open_vSwitch . other_config:flow-limit=10000
-\end{verbatim}
+\end{Verbatim}
 
 The limit helps and when the upcall frequency is not too high (double or triple the limit), everything works. However, once we flood the network with even more packets, the flow limit is overshot and \ident{ovs-vswitchd} again crashes.
 
@@ -472,7 +483,7 @@ The decreased flow limit in the configuration of OVS does not help much to preve
 
 When CPU bound, \ident{ovs-vswitchd} does not crash. It tries to do the opposite and \href{https://github.com/openvswitch/ovs/blob/e3ba0be48ca457ab3a1c9f1e3522e82218eca0f9/ofproto/ofproto-dpif-upcall.c\#L1031-L1041}{dynamically changes the datapath's flow rule limit} based on the revalidator thread's performance:
 
-\begin{verbatim}
+\begin{Verbatim}[fontsize=\small]
 duration = MAX(time_msec() - start_time, 1);
 udpif->dump_duration = duration;
 if (duration > 2000) {
@@ -484,7 +495,7 @@ if (duration > 2000) {
     flow_limit += 1000;
 }
 flow_limit = MIN(ofproto_flow_limit, MAX(flow_limit, 1000));
-\end{verbatim}
+\end{Verbatim}
 
 We can see the effect of this code in \cref{fig:packet-flood-limited}. The red dots signify the dynamic flow limit. The horizontal lines going to the right of the dots signify the time the revalidator run took. We can see that a long revalidator run leads to a decreased flow limit.
 

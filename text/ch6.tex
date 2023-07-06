@@ -1,6 +1,23 @@
 \chapter{Discussion}
 \label{chap:discussion}
 
+\section{Generality of our results}
+
+To test our results in the real world, we have arranged a meeting with a large computing infrastructure provider\footnote{intentionally unnamed} using OVS. Their OVS instances are managed by OpenStack's Neutron \cite{Neutron} instead of our OVN-Kubernetes. They use VMs whereas we used containers. The biggest common factor between their system configuration and ours is the use of OVS.
+
+We did not get access to the hypervisors (nodes of the cluster) and OVS directly, but we were given a full VM to run the tests. And for a limited time, we talked with one of their administrators who probed the hypervisors following our guidance. We have conducted the following experiments:
+
+\begin{itemize}
+    \item First, we have confirmed the presence of OVS by running the flow eviction timeout experiment. The results on their system were as expected with an observable increase in latencies at the 10-second mark. Interestingly, the extra latencies caused by upcall processing were observable only within the cluster itself, not when communicating over the default gateway. We do not know why.
+    
+    \item We tried running our packet flooding tool with the varying MAC addresses. According to the administrator, it did not affect the number of installed datapath flows. However, due to an increase in the CPU load caused by QEMU processes, we hypothesize that the packets were dropped by \ident{libvirt} before they reached OVS.
+
+    \item After the unsuccessful stress test, we tried looking for packets causing upcalls and installation of new flow rules. Because we did not get access to OVS itself, we had to rely on the administrator's observations. We did not run the experiment to its completion due to time constraints. But we still found that packets with VLAN tags (even nested) generate new flow rules, specifically drop rules for individual VLAN tags. Using this knowledge and a simple Scapy script, we managed to increase the flow table size from around $100$ entries to $90000$, but we could not get any higher than that. We were told that there are some QoS rules preventing network abuse that we might have run into. Another limiting factor might have been the limited performance of Scapy which prevented us from generating large enough traffic.
+\end{itemize} 
+
+Based on this short experiment, we conclude that our findings apply to different OVS configurations and generalize well.
+
+
 \section{Possible OVS improvements}
 \label{sec:improv}
 
@@ -82,8 +99,14 @@ Our findings certainly impact public cloud providers using OVS. We would recomme
     \item Monitor the number of flows in the flow tables (i.e. \ident{ovs-dpctl show}) and trigger a warning whenever the number of flows reaches the limit.
 \end{enumerate}
 
-In case the cloud provider uses OVS for firewalling, we would recommend switching to some other technology. OVS is in our opinion currently unsuitable for blocking undesirable traffic.
+In case the cloud provider uses OVS for firewalling, we would recommend switching to some other technology. OVS is in our opinion currently unsuitable for blocking undesirable traffic with high performance.
 
+
+\section{Results coverage}
+
+As we mentioned before, the SDN networking stack consists of multiple complex components all interacting with each other. The problems we identified are by no means the complete list of problems of SDNs using OVS. We can only say that we found some problems and there might still be many more.
+
+If we limit ourselves to OVS only, the same still applies. We cannot say with high confidence that our research covered all possible issues caused by pathological traffic patterns. There might still be more to discover.
 
 \section{Future work}
 

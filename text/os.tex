@@ -24,7 +24,7 @@ Once you changed the script, follow these steps:
 
     \item Append the \ident{-{}-cri-socket=unix:///var/run/cri-dockerd.sock} option at the end of the output of the previous step and run the command on both \kb{2} and \kb{3}.
 
-    \item Wait for the cluster to initialize, i.e. the command \ident{kubectl get nodes} on \kb{1} should shows that all 3 nodes are in the \ident{Ready} state.
+    \item Wait for the cluster to initialize, i.e. the command \ident{kubectl get nodes} on \kb{1} should show that all 3 nodes are in the \ident{Ready} state.
 
     \item Copy pod specification files from the \ident{kube\_configs} directory to \kb{1}. Edit the \ident{reflector.yaml} file and change the image reference to your build of the \ident{analyzer} container (see \cref{chap:analyzer}). Create the pods by calling \ident{kubectl create -f \$file}.
 

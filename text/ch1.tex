@@ -124,7 +124,7 @@ A \emph{datapath} is the primary part of OVS's data layer, the lowest component 
     \label{fig:ovs-arch-schema}
 \end{figure}
 
-OVS processes packets in \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.h}{datapaths}. All datapaths implement a common \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L107-L117}{interface} hiding the implementation details of low-level packet processing from the layers above.
+OVS processes packets in \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif.h}{datapaths}\footnote{digital version of this text contains hyperlinks to the relevant source code}. All datapaths implement a common \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-provider.h\#L107-L117}{interface} hiding the implementation details of low-level packet processing from the layers above.
 
 The two most commonly used datapath implementations are \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netdev.c}{\ident{netdev}} and \href{https://github.com/openvswitch/ovs/blob/e90a0727f17f6ad915a32735a8c0b282f2c8cd6f/lib/dpif-netlink.c}{\ident{netlink}}. They are named after the mechanism used for integrating with the operating system. The \ident{netlink} datapath is Linux-specific and uses a special kernel module. The \ident{netdev} datapath is implemented in userspace.
 
@@ -202,7 +202,7 @@ The real implementation (\href{https://elixir.bootlin.com/linux/v6.2.5/source/ne
 \item
   The kernel keeps mask usage statistics and the \ident{mask\_array} is
   kept sorted with the most used masks first
-  (\href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/flow_table.c\#L1107}{\ident{ovs\_flow\_masks\_rebalance}}).
+  (\href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/flow_table.c\#L1107}{\ident{ovs\_flow\_masks\_rebalance()}}).
   This happens
   \href{https://elixir.bootlin.com/linux/v6.2.5/source/net/openvswitch/datapath.c\#L2536}{periodically}
   based on a time interval.

@@ -8,6 +8,8 @@ This chapter describes the environment we used for running our experiments. The 
 
 For our research, we used two experimental clusters with different hardware configurations. One installation run virtualized on Proxmox VE with only a single physical host. The other installation used dedicated hardware. When we write about an experiment and do not specify where it runs, we are presenting results from the cluster on dedicated hardware. However, most of the measurements can be replicated in a virtualized environment without a significant impact on the outcome.
 
+We always used a three-node cluster and we named the nodes \kb{1}, \kb{2}, and \kb{3}.
+
 \paragraph{Virtualized installation}
 We used the virtualized environment for development and debugging. The physical host was running Proxmox VE 7.4-3, and it was configured with an Intel\textsuperscript{\textregistered} Core\textsuperscript{TM} i7-3770 CPU running at 3.40 GHz with $4$ cores, $8$ threads, and $31.23$ GiB of RAM.
 
@@ -19,16 +21,16 @@ The cluster nodes were equipped with $2$ virtual network interfaces connected to
 
 We used the cluster with dedicated hardware to validate the results observed in the virtual environment. The nodes were Dell PowerEdge R730 servers, configured with Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} CPU E5-2690 v4 running at 2.60GHz with $14$ cores, $28$ threads, and $131$ GB of RAM.
 
-Similar to the virtualized nodes, the dedicated nodes had 2 network interfaces. One management 1 GbE network interface was connected to the Internet, and another cluster with a 10 GbE interface was connected to a switch. We configured the switch to use VLANs to isolate the cluster traffic from all other ports. While we did not have the opportunity to use a fully dedicated switch, the switch should have had enough capacity so that it would not be a bottleneck. The average round trip time between \kb{2} and \kb{3} (\ident{ping -c 100}) was $0.104$ ms.
+Similar to the virtualized nodes, the dedicated nodes had 2 network interfaces. One management 1 GbE network interface was connected to the Internet, and a different 10 GbE interface was connected to a switch. We configured the switch to use VLANs to isolate the cluster traffic from all other ports. While we did not have the opportunity to use a fully dedicated switch, the switch should have had enough capacity so that it would not be a bottleneck. The average round trip time between \kb{2} and \kb{3} (\ident{ping -c 100}) was $0.104$ ms.
 
 \section{Software environment}
 \label{sec:sw-env}
 
 We run our experiments and measurements on a Kubernetes cluster with OVN-Kubernetes as the CNI plugin and Docker as the container runtime. OVN-Kubernetes was installed using containerized setup following the official installation guide \cite{OVNInstallGuide}. We used Fedora 38 as the base Linux distribution. To allow reproducibility, we fully automated the installation procedure. Installation scripts with usage instructions can be found in \cref{chap:install}.
 
-In our experiments, we always used a three-node cluster with one node dedicated as a control node. We didn't test cluster installations configured for high availability (HA). We focused on the internals of OVS, a part of low-level networking infrastructure. We do not expect any significant difference between HA and non-HA clusters.
+In our experiments, the three-node cluster always had one node dedicated as a control node (\kb{1}). We didn't test cluster installations configured for high availability (HA). We focused on the internals of OVS, a part of low-level networking infrastructure. We do not expect any significant difference between HA and non-HA clusters.
 
-We named our cluster nodes \kb{1}, \kb{2}, and \kb{3}. The node \kb{1} is always the control node, our experiments always run on \kb{2}.
+Our experiments always run on\kb{2}.
 
 \subsection{OVN-Kubernetes configuration}
 \label{subsec:ovnkube-limits}

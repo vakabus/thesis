@@ -1,7 +1,7 @@
 
 \chapwithtoc{Conclusion}
 
-We started our research with the goal of finding traffic patterns causing performance issues in OVS and OVN-Kubernetes. We successfully achieved this goal by discovering OVN's port-security feature, which can be abused to generate an upcall and install a new flow rule for every received packet. We showed that this behavior cannot be easily prevented and that it requires either changes to the kernel module or changes to flow rule generation in \ident{ovs-vswitchd}.
+We started our research with the goal of finding traffic patterns causing performance issues in OVS and OVN-Kubernetes. We successfully achieved this goal by discovering OVN's port-security feature, which can be abused to generate an upcall and install a new flow rule for every received packet. We showed that this behavior cannot be easily prevented and that it requires either changes to the datapath interface or changes to flow rule generation in \ident{ovs-vswitchd}.
 
 Additionally, using our findings, we stressed OVS with upcalls and discovered, that the default resource limits for OVS in OVN-Kubernetes cause more problems than they prevent. Namely, they lead either to crashes of OVS due to unhandled out-of-memory conditions or complete network denial-of-service when \ident{ovs-vswitchd} is CPU limited. With unconstrained resources, OVS handled the stress test rather well.
 
