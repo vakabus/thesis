@@ -13,8 +13,8 @@ from parsing import parse_trace, parse_tags, parse_dpctl_dump, parse_pcap
 
 
 
-if len(sys.argv) == 1:
-    print("missing argument - name of input csv")
+if len(sys.argv) != 3:
+    print("missing argument: [name of input csv] [name of the output file]")
     exit(1)
 
 
@@ -83,7 +83,7 @@ ax.vlines(1000, ymin=0, ymax=len(upcalls_per_type), linestyles="dotted", color="
 #plt.scatter(df["ns_monotonic"], df["masks_hit_per_pkt"], label="masks hit per pkt")
 
 
-fig.savefig('/tmp/plot.pdf', bbox_inches="tight")
+fig.savefig(sys.argv[2], bbox_inches="tight")
 
 
 

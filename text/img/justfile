@@ -1,0 +1,11 @@
+analyzer := "../../analyzer"
+
+plots:
+    python {{analyzer}}/postprocessing/randomized_eviction_timeout.py {{analyzer}}/results/randomized_eviction_timeout/*.csv randomized_eviction_timeout.png
+    python {{analyzer}}/postprocessing/packet_flood_basic.py {{analyzer}}/results/packet_flood_15k/ packet_flood_bare_15k.png
+    python {{analyzer}}/postprocessing/packet_flood_basic.py {{analyzer}}/results/packet_flood_50k/ packet_flood_bare_50k.png
+    python {{analyzer}}/postprocessing/packet_flood.py {{analyzer}}/results/packet_flood_2023-06-11T21:15+02:00/ packet_flood_limited_resources_50k.png
+    python {{analyzer}}/postprocessing/packet_flood_latency.py {{analyzer}}/results/packet_flood_50k_latency/ packet_flood_50k_latency.png
+    python {{analyzer}}/postprocessing/packet_fuzzing.py {{analyzer}}/results/packet_fuzz_2023-06-19T18:12+02:00/ packet_fuzz.png
+
+    

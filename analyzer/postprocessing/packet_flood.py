@@ -6,8 +6,8 @@ import polars as pl
 from parsing import normalize_ts, parse_dpctl_dump, parse_icmp_rtt, parse_loadavg, parse_trace, parse_udp_rr, parse_usdt, parse_vswitchd, remove_offset_and_scale, renumber, window_frequency
 
 
-if len(sys.argv) == 1:
-    print("missing argument - name of the input directory")
+if len(sys.argv) != 3:
+    print("missing argument: [name of input csv] [name of the output file]")
     exit(1)
 
 
@@ -72,5 +72,5 @@ ax3.legend(loc='upper left')
 fig.subplots_adjust(hspace=0)
 
 
-plt.savefig("/tmp/plot.pdf", bbox_inches="tight")
+plt.savefig(sys.argv[2], bbox_inches="tight")
 #plt.show()

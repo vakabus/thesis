@@ -8,8 +8,8 @@ from parsing import normalize_ts, parse_dpctl_dump, parse_icmp_rtt, parse_loadav
 from window import rolling_window_left
 
 
-if len(sys.argv) == 1:
-    print("missing argument - name of input csv")
+if len(sys.argv) != 3:
+    print("missing argument: [name of input csv] [name of the output file]")
     exit(1)
 
 
@@ -122,5 +122,5 @@ ax3.legend(handles=[mpatches.Patch(color='none', label="sample ranges for differ
 
 fig.subplots_adjust(hspace=0)
 
-plt.savefig("/tmp/plot.pdf", bbox_inches="tight")
+plt.savefig(sys.argv[2], bbox_inches="tight")
 #plt.show()

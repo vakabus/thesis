@@ -33,7 +33,6 @@ setup: build && (setup-pods 'kb1') deploy-analyzer
 setup-pods root='kb1':
     poe --root cluster_tools run pod --master-node {{root}} deploy arch
     poe --root cluster_tools run pod --master-node {{root}} deploy reflector
-    poe --root cluster_tools run pod --master-node {{root}} deploy netserver
     poe --root cluster_tools run pod --master-node {{root}} deploy victim
 
 clean:
@@ -69,6 +68,7 @@ experiment-packet-fuzz nodes='.nodes.homelab': ( deploy-analyzer nodes ) && plot
 
 experiment-packet-flood count='20000' nodes='.nodes.homelab': ( deploy-analyzer nodes ) && plot-last-packet-flood link-last-packet-flood
     #!/bin/bash
+    set -e
 
     # load config variables
     . {{nodes}}
@@ -90,9 +90,9 @@ experiment-packet-flood count='20000' nodes='.nodes.homelab': ( deploy-analyzer 
 
     # run experiment
     tmux new -d -s thesis-packet-flood \; split-window -h \; split-window -v \;
-    tmux send-keys -t thesis-packet-flood.0 "poe --root cluster_tools run ssh $NODE2 -- sh -c \"\\\"sudo analyzer --push-results-url {{callback_url}} node-logger --only-upcalls --runtime-sec 150\\\"\" ; {{shell_exit}}" ENTER
-    tmux send-keys -t thesis-packet-flood.1 "poe --root cluster_tools run pod -m $NODE1 ssh victim -- sh -c \"\\\"analyzer --push-results-url {{callback_url}} victim --runtime-sec 150\\\"\" ; {{shell_exit}}" ENTER
-    tmux send-keys -t thesis-packet-flood.2 "poe --root cluster_tools run pod -m $NODE1 ssh arch -- sh -c \"\\\"sleep 10; analyzer --push-results-url {{callback_url}} packet-flood --count {{count}} --runtime-sec 120\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.0 "poe --root cluster_tools run ssh $NODE2 -- sh -c \"\\\"sudo analyzer --push-results-url {{callback_url}} node-logger --only-upcalls --runtime-sec 80\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.1 "poe --root cluster_tools run pod -m $NODE1 ssh victim -- sh -c \"\\\"analyzer --push-results-url {{callback_url}} victim --runtime-sec 80\\\"\" ; {{shell_exit}}" ENTER
+    tmux send-keys -t thesis-packet-flood.2 "poe --root cluster_tools run pod -m $NODE1 ssh arch -- sh -c \"\\\"sleep 10; analyzer --push-results-url {{callback_url}} packet-flood --count {{count}} --runtime-sec 60\\\"\" ; {{shell_exit}}" ENTER
     
     tmux attach -t thesis-packet-flood
     
@@ -104,7 +104,8 @@ plot-last-packet-fuzz:
 
 
 plot-last-packet-flood:
-    cd analyzer; QT_QPA_PLATFORM=xcb python postprocessing/packet_flood.py $(ls -d results/packet_flood_2023* | sort | tail -n 1)
+    cd analyzer; QT_QPA_PLATFORM=xcb python postprocessing/packet_flood.py $(ls -d results/packet_flood_2023* | sort | tail -n 1) /tmp/out.pdf
+    evince /tmp/out.pdf &
 
 
 @poe *args:
